@@ -12,7 +12,7 @@ routes = [{ pattern = "bot.kairosarchive.net", custom_domain = true }]
 # Plain configuration. The two secrets, DISCORD_PUBLIC_KEY and
 # DISCORD_BOT_TOKEN, are set with `wrangler secret put` and never here.
 [vars]
-DISCORD_APPLICATION_ID = "set-me"
+DISCORD_APPLICATION_ID = "1549899039384797244"
 REGISTRY_BASE_URL = "https://api.kairosarchive.net"
 SITE_BASE_URL = "https://kairosarchive.net"
 
