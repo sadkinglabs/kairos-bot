@@ -70,8 +70,8 @@ You need a Discord application and a Cloudflare account with the `kairosarchive.
 ```sh
 npm ci
 npm test            # unit tests, including the Worker end to end against a fake registry
-npm run lint
-npm run typecheck
+npm run lint        # oxlint: parses TypeScript itself, so the linter never pins the compiler
+npm run typecheck   # tsc from TypeScript 7
 npm run bundle      # a dry-run deploy: what would be uploaded, in dist/
 npm run dev         # the Worker in the local runtime on http://127.0.0.1:8787
 ```

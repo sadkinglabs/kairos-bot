@@ -13,8 +13,3 @@ updates:
     groups:
       cloudflare:
         patterns: ["wrangler", "@cloudflare/*"]
-    ignore:
-      # TypeScript 7 is the rewritten compiler; typescript-eslint does not
-      # run on it yet. Same hold as the site repo.
-      - dependency-name: typescript
-        versions: [">=7"]

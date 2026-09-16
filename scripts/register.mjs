@@ -23,7 +23,8 @@ const API = "https://discord.com/api/v10";
 const headers = { authorization: `Bot ${token}`, "content-type": "application/json", "user-agent": "kairos-bot register (+https://kairosarchive.net)" };
 
 async function call(method, path, body) {
-  const res = await fetch(`${API}${path}`, { method, headers, body: body === undefined ? undefined : JSON.stringify(body) });
+  const init = body === undefined ? { method, headers } : { method, headers, body: JSON.stringify(body) };
+  const res = await fetch(`${API}${path}`, init);
   const text = await res.text();
   if (!res.ok) throw new Error(`${method} ${path}: HTTP ${res.status} ${text}`);
   return text ? JSON.parse(text) : null;
