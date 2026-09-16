@@ -41,7 +41,9 @@ You need a Discord application and a Cloudflare account with the `kairosarchive.
 
 2. **Configure the Worker.** In `wrangler.toml` set `DISCORD_APPLICATION_ID` to the application id. The route is `bot.kairosarchive.net`; deploying creates the DNS record.
 
-3. **Deploy.** Either from a laptop:
+3. **Deploy.** From GitHub, with no shell: add four repository secrets under *Settings → Secrets and variables → Actions*: `CLOUDFLARE_API_TOKEN` (a token from the Cloudflare dashboard's "Edit Cloudflare Workers" template), `CLOUDFLARE_ACCOUNT_ID`, `DISCORD_PUBLIC_KEY` and `DISCORD_BOT_TOKEN`. Then run the **deploy** workflow from the Actions tab; it also runs on every push to `main`. The workflow deploys, pushes the two Discord values into the Worker's secret store, and checks the live URL.
+
+   Or from a laptop:
 
    ```sh
    npm ci
@@ -53,7 +55,7 @@ You need a Discord application and a Cloudflare account with the `kairosarchive.
 
    or connect the repo to **Workers Builds** in the Cloudflare dashboard (Workers & Pages → Create → connect a repository), which deploys every push to `main`; then add the two secrets under the Worker's *Settings → Variables and Secrets*.
 
-4. **Register the commands and emojis**, from a shell with the two values in the environment:
+4. **Register the commands and emojis.** From GitHub: run the **register** workflow from the Actions tab, with your test server's id in the box for an instant guild-scoped registration, or empty for global. Or from a shell:
 
    ```sh
    DISCORD_APPLICATION_ID=… DISCORD_BOT_TOKEN=… npm run register
