@@ -1,0 +1,20 @@
+# The bot's Worker. Deploy with `npm run deploy` (needs `wrangler login`
+# once) or connect the repo to Workers Builds in the Cloudflare dashboard,
+# which deploys every push to main the way Pages deploys the site.
+name = "kairos-bot"
+main = "src/index.ts"
+compatibility_date = "2026-09-01"
+
+# Public on a subdomain of the zone the archive already owns. Remove this
+# block to serve from the workers.dev address instead.
+routes = [{ pattern = "bot.kairosarchive.net", custom_domain = true }]
+
+# Plain configuration. The two secrets, DISCORD_PUBLIC_KEY and
+# DISCORD_BOT_TOKEN, are set with `wrangler secret put` and never here.
+[vars]
+DISCORD_APPLICATION_ID = "set-me"
+REGISTRY_BASE_URL = "https://api.kairosarchive.net"
+SITE_BASE_URL = "https://kairosarchive.net"
+
+[observability]
+enabled = true
