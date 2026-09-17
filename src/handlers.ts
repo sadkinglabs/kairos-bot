@@ -3,7 +3,7 @@
  * response body, so the router in index.ts stays a switch. */
 import { EPHEMERAL, choices, focusedValue, message, optionValue, targetMessage, update, whisper, type Interaction } from "./discord";
 import { cardEmbed, foundEmbeds, historyEmbed, printingEmbed, resultsEmbed, searchEmbed, setEmbed, syntaxEmbed } from "./embed";
-import { queryCards } from "./query";
+import { queryCards, queryRandom } from "./query";
 import type { EmojiMap } from "./emoji";
 import { bracketedNames, matchNames, matchSets, parseId, resolveName } from "./names";
 import type { Card, Registry } from "./registry";
@@ -124,8 +124,26 @@ export async function byId(interaction: Interaction, s: Services): Promise<Respo
   return message(printingEmbed(printing, owner, s.emojis));
 }
 
-export async function random(_interaction: Interaction, s: Services): Promise<Response> {
+/** /random: a draw from the whole index, or, with a query, from its
+ * matches via the query API. A query that bound a printing other than
+ * the card's default shows that printing, so the filter is visible. */
+export async function random(interaction: Interaction, s: Services): Promise<Response> {
   const { cards, sets } = await s.registry.current();
+  const query = (optionValue(interaction, "query") ?? "").trim();
+  if (query) {
+    const answer = await queryRandom(s.apiBase, query, s.fetchImpl);
+    if (answer.kind === "empty") return whisper(`Nothing matches “${query}”. Syntax: ${s.siteBase}/syntax`);
+    if (answer.kind === "error") {
+      const why = answer.error.warnings?.length ? answer.error.warnings.join("\n") : answer.error.details;
+      return whisper(`I could not read that query.\n${why}\nSyntax: ${s.siteBase}/syntax`);
+    }
+    if (answer.kind === "unavailable") return whisper("The query API did not answer; try /random without a query, or again in a moment.");
+    const found = await s.registry.card(answer.codex_id);
+    if (!found) return whisper(`No card ${answer.codex_id} in the archive.`);
+    const drawn = answer.printing_id && answer.printing_id !== found.default_printing_id ? await s.registry.printing(answer.printing_id) : null;
+    if (drawn) return message(printingEmbed(drawn, found, s.emojis));
+    return message(cardEmbed(found, sets, s.emojis, await shownPrinting(found, s)));
+  }
   const pick = cards[Math.floor(s.random() * cards.length)];
   if (!pick) return whisper("The archive is empty, which should not happen.");
   const found = await s.registry.card(pick.codex_id);

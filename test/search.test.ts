@@ -76,6 +76,29 @@ describe("/search with the query API", () => {
   });
 });
 
+describe("/random with a query", () => {
+  const draw = (q: string, overrides: Record<string, unknown>) => post(q, overrides, { type: 2, data: { name: "random", options: [{ type: 3, name: "query", value: q }] } });
+  it("shows the drawn printing when the query bound one, else the card", async () => {
+    const foil = await draw("s:gothic f:foil", { "cards/random?q=s%3Agothic%20f%3Afoil": { object: "card", codex_id: "C000927", printing: { printing_id: "P002720" } } });
+    expect(foil.calls).toContain(`${BASE}/cards/random?q=s%3Agothic%20f%3Afoil`);
+    expect(foil.body.data.embeds![0]!.title).toBe("Moss Troll — Gothic · Booster · Foil");
+    const plain = await draw("t:minion", { "cards/random?q=t%3Aminion": { object: "card", codex_id: "C000927", printing: { printing_id: "P002719" } } });
+    expect(plain.body.data.embeds![0]!.title).toBe("Moss Troll");
+    expect(plain.body.data.embeds![0]!.description).toContain("Shown: Gothic · Booster · Standard");
+  });
+  it("whispers for an empty pool, a bad query, and a missing API", async () => {
+    const nf = new Response(JSON.stringify({ object: "error", status: 404, code: "not_found", details: "No card matches “t:site cost>99”." }), { status: 404, headers: { "content-type": "application/json" } });
+    const empty = await draw("t:site cost>99", { "cards/random?q=t%3Asite%20cost%3E99": nf });
+    expect(empty.body.data.flags).toBe(64);
+    expect(empty.body.data.content).toContain("Nothing matches");
+    const bad = new Response(JSON.stringify({ object: "error", status: 400, code: "bad_query", details: "The query could not be read.", warnings: ["cost: \">3\" is not a number"] }), { status: 400, headers: { "content-type": "application/json" } });
+    const err = await draw("cost>>3", { "cards/random?q=cost%3E%3E3": bad });
+    expect(err.body.data.content).toContain("is not a number");
+    const down = await draw("t:minion", {});
+    expect(down.body.data.content).toContain("did not answer");
+  });
+});
+
 describe("queryCards", () => {
   it("reads unavailable for a network error or a non-JSON answer", async () => {
     expect(await queryCards(BASE, "x", 5, async () => { throw new Error("boom"); })).toEqual({ kind: "unavailable" });

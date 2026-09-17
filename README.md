@@ -6,7 +6,7 @@ Kairos Archive's Discord bot for *Sorcery: Contested Realm*. Slash commands that
 |---|---|
 | `/card name` | A card with its default printing's art. Start typing for name suggestions; pressing enter on free text takes the best match. |
 | `/id C000230` or `/id P000937` | A card by codex id, or one physical printing by printing id, with that printing's own art, set, product, finish, artist and flavour text. |
-| `/random` | A random card. |
+| `/random` | A random card; with a query, a random card from its matches (`/random t:site`, `/random e:fire cost<=2`, `/random s:gothic is:foil`). A query that names a printing shows that printing. |
 | `/search query` | The first five matches for a query in the [search syntax](https://kairosarchive.net/syntax), each with its art, and the way to the rest. Answered by the query API on query.kairosarchive.net. |
 | `/syntax` | The search syntax on one screen, shown to you alone. |
 | `/history name` | Every face the card has had, oldest first, each change against the one before (mana, stats, thresholds, rules text), and any earlier names. Dates are when the registry recorded a face. |

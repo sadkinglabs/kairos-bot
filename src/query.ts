@@ -37,3 +37,22 @@ export async function queryCards(apiBase: string, q: string, limit: number, fetc
     return { kind: "unavailable" };
   }
 }
+
+/** A card drawn at random from the matches of `q`: the ids the bot needs
+ * to fetch the full records. "empty" when nothing matches. */
+export type RandomAnswer = { kind: "card"; codex_id: string; printing_id: string | null } | { kind: "empty" } | { kind: "error"; error: QueryError } | { kind: "unavailable" };
+
+export async function queryRandom(apiBase: string, q: string, fetchImpl: Fetch = (u, i) => fetch(u, i)): Promise<RandomAnswer> {
+  const url = `${apiBase}/cards/random?q=${encodeURIComponent(q)}`;
+  try {
+    const res = await fetchImpl(url, { headers: { "user-agent": USER_AGENT, accept: "application/json" } });
+    if (!res.headers.get("content-type")?.includes("json")) return { kind: "unavailable" };
+    const body = (await res.json()) as { object: "card"; codex_id: string; printing: { printing_id: string } | null } | QueryError;
+    if (body.object === "card") return { kind: "card", codex_id: body.codex_id, printing_id: body.printing?.printing_id ?? null };
+    if (body.object === "error" && body.code === "not_found" && res.status === 404 && body.details.startsWith("No card matches")) return { kind: "empty" };
+    if (body.object === "error" && body.code !== "not_found") return { kind: "error", error: body };
+    return { kind: "unavailable" };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}

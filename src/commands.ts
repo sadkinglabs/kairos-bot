@@ -19,7 +19,8 @@ export const commands = [
   },
   {
     name: "random",
-    description: "Show a random Sorcery card",
+    description: "Show a random Sorcery card, from all of them or from a search",
+    options: [{ type: 3, name: "query", description: "Optional search syntax to draw from, e.g. t:site or e:fire cost<=2", required: false }],
   },
   {
     name: "syntax",
