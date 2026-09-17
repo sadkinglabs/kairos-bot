@@ -55,7 +55,9 @@ You need a Discord application and a Cloudflare account with the `kairosarchive.
 
    or connect the repo to **Workers Builds** in the Cloudflare dashboard (Workers & Pages → Create → connect a repository), which deploys every push to `main`; then add the two secrets under the Worker's *Settings → Variables and Secrets*.
 
-4. **Register the commands and emojis.** From GitHub: run the **register** workflow from the Actions tab, with your test server's id in the box for an instant guild-scoped registration, or empty for global. Or from a shell:
+4. **Invite the bot** to a server first. On *OAuth2 → URL Generator*, tick the `applications.commands` scope (add `bot` only if the bot should ever post unprompted), open the generated URL, and pick the server. A guild-scoped registration in the next step needs the application to be in that server already; Discord answers `403 Missing Access` otherwise.
+
+5. **Register the commands and emojis.** From GitHub: run the **register** workflow from the Actions tab, with that server's id in the box for an instant guild-scoped registration, or empty for global (shows everywhere the bot is, up to an hour later). Or from a shell:
 
    ```sh
    DISCORD_APPLICATION_ID=… DISCORD_BOT_TOKEN=… npm run register
@@ -63,9 +65,7 @@ You need a Discord application and a Cloudflare account with the `kairosarchive.
 
    Add `DISCORD_GUILD_ID=…` to register to one server first; that shows at once, while global registration can take up to an hour. Run it again after any change to `src/commands.ts`. Needs Node 22.18 or newer.
 
-5. **Point Discord at the Worker.** On *General Information*, set **Interactions Endpoint URL** to `https://bot.kairosarchive.net/` and save. Discord checks the URL by sending a ping and a deliberately bad signature; a Worker that is deployed with the right public key passes.
-
-6. **Invite the bot.** On *OAuth2 → URL Generator*, tick the `applications.commands` scope (add `bot` only if the bot should ever post unprompted), open the generated URL, and pick a server.
+6. **Point Discord at the Worker.** On *General Information*, set **Interactions Endpoint URL** to `https://bot.kairosarchive.net/` and save. Discord checks the URL by sending a ping and a deliberately bad signature; a Worker that is deployed with the right public key passes.
 
 ## Developing
 
