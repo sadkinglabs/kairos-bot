@@ -86,6 +86,10 @@ npm run dev         # the Worker in the local runtime on http://127.0.0.1:8787
 
 For `npm run dev`, put a `DISCORD_PUBLIC_KEY` in `.dev.vars` (ignored by git). Interactions must be signed, so the quickest local check is a GET, which returns a line of text, and an unsigned POST, which returns 401 as Discord expects.
 
+## Usage counts
+
+Every interaction leaves one data point in Workers Analytics Engine (`src/stats.ts`, dataset `kairos_bot`): the kind of interaction and the command or control it named, how it ended (a message, a whisper, an in-place update, autocomplete choices, a rejected or failed request), whether it came from a server or an account install, the server as a keyed hash, the caller's locale, the text that missed when the answer was "no such card", the time taken and the status. No user id, no address, no message text. The hash is an HMAC with the `STATS_SALT` secret; without the secret no server hash is written at all. The archive's stats dashboard (the site repository, `stats/`) reads the dataset; [kairosarchive.net/usage](https://kairosarchive.net/usage) says what is counted.
+
 ## Limits worth knowing
 
 On the free Workers plan: 100,000 requests a day and 10 ms of CPU per request. A cold isolate spends a few milliseconds parsing the card index once; each command after that is a cached fetch and a small string build. Discord shows about the first 350 characters of an embed description before folding it, and the bot caps descriptions at 2,000.
