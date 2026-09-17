@@ -56,7 +56,7 @@ You need a Discord application and a Cloudflare account with the `kairosarchive.
 
    or connect the repo to **Workers Builds** in the Cloudflare dashboard (Workers & Pages → Create → connect a repository), which deploys every push to `main`; then add the two secrets under the Worker's *Settings → Variables and Secrets*.
 
-4. **Invite the bot** to a server first. On *OAuth2 → URL Generator*, tick the `applications.commands` scope (add `bot` only if the bot should ever post unprompted), open the generated URL, and pick the server. A guild-scoped registration in the next step needs the application to be in that server already; Discord answers `403 Missing Access` otherwise.
+4. **Invite the bot** to a server first. The install link on *Installation* in the Developer Portal is enough (`https://discord.com/oauth2/authorize?client_id=<application id>`; Kairos Archive's is on [kairosarchive.net/discord](https://kairosarchive.net/discord)); it offers a server or an account install according to the contexts set there. Add the `bot` scope only if the bot should ever post unprompted. A guild-scoped registration in the next step needs the application to be in that server already; Discord answers `403 Missing Access` otherwise.
 
 5. **Register the commands and emojis.** From GitHub: run the **register** workflow from the Actions tab, with that server's id in the box for an instant guild-scoped registration, or empty for global (shows everywhere the bot is, up to an hour later). Or from a shell:
 
