@@ -9,6 +9,7 @@ import { matchNames, parseId, resolveName } from "./names";
 import type { Registry } from "./registry";
 
 import type { Fetch } from "./registry";
+/** apiBase is the query API's base (query.kairosarchive.net), not the registry's. */
 export interface Services { registry: Registry; emojis: EmojiMap; siteBase: string; apiBase: string; random: () => number; fetchImpl?: Fetch }
 
 export async function autocomplete(interaction: Interaction, s: Services): Promise<Response> {

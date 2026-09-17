@@ -7,7 +7,7 @@
  *
  * Secrets (wrangler secret put): DISCORD_PUBLIC_KEY, DISCORD_BOT_TOKEN.
  * Vars (wrangler.toml): DISCORD_APPLICATION_ID, REGISTRY_BASE_URL,
- * SITE_BASE_URL.
+ * QUERY_BASE_URL, SITE_BASE_URL.
  *
  * index.ts is the entry module and exports only the default handler:
  * the runtime rejects any other export from an entry module, which is
@@ -23,11 +23,14 @@ export interface Env {
   DISCORD_APPLICATION_ID: string;
   DISCORD_BOT_TOKEN?: string;
   REGISTRY_BASE_URL?: string;
+  /** The query API (the search syntax as JSON), on its own hostname. */
+  QUERY_BASE_URL?: string;
   SITE_BASE_URL?: string;
 }
 
 export const DEFAULT_REGISTRY = "https://api.kairosarchive.net";
 export const DEFAULT_SITE = "https://kairosarchive.net";
+export const DEFAULT_QUERY = "https://query.kairosarchive.net";
 
 /** One registry client per isolate, so the name index is parsed once. */
 let registry: Registry | null = null;
@@ -59,7 +62,7 @@ export async function handle(request: Request, env: Env, deps: { registry: Regis
     registry: deps.registry,
     emojis: await applicationEmojis(env.DISCORD_APPLICATION_ID, env.DISCORD_BOT_TOKEN),
     siteBase: env.SITE_BASE_URL ?? DEFAULT_SITE,
-    apiBase: env.REGISTRY_BASE_URL ?? DEFAULT_REGISTRY,
+    apiBase: env.QUERY_BASE_URL ?? DEFAULT_QUERY,
     random: deps.random ?? Math.random,
     fetchImpl: deps.fetchImpl,
   };

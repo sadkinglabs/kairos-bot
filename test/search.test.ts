@@ -8,7 +8,7 @@ import { queryCards } from "../src/query";
 
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
 const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])) as CryptoKeyPair;
-const env: Env = { DISCORD_PUBLIC_KEY: hex((await crypto.subtle.exportKey("raw", pair.publicKey)) as ArrayBuffer), DISCORD_APPLICATION_ID: "app", REGISTRY_BASE_URL: BASE, SITE_BASE_URL: "https://site.test" };
+const env: Env = { DISCORD_PUBLIC_KEY: hex((await crypto.subtle.exportKey("raw", pair.publicKey)) as ArrayBuffer), DISCORD_APPLICATION_ID: "app", REGISTRY_BASE_URL: BASE, QUERY_BASE_URL: BASE, SITE_BASE_URL: "https://site.test" };
 
 const list = {
   object: "list", release: "v3.9.0", q: "t:minion e:fire", total: 32, page: 1, page_size: 8, has_more: true, rules_text_total: 2,

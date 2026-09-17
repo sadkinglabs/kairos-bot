@@ -14,6 +14,7 @@ routes = [{ pattern = "bot.kairosarchive.net", custom_domain = true }]
 [vars]
 DISCORD_APPLICATION_ID = "1549899039384797244"
 REGISTRY_BASE_URL = "https://api.kairosarchive.net"
+QUERY_BASE_URL = "https://query.kairosarchive.net"
 SITE_BASE_URL = "https://kairosarchive.net"
 
 [observability]
