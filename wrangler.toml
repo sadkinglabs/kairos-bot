@@ -19,3 +19,12 @@ SITE_BASE_URL = "https://kairosarchive.net"
 
 [observability]
 enabled = true
+
+# The query API, called over a service binding rather than the public
+# hostname: no public hop, and the API's per-address rate limit does not
+# count the bot, since a bound request carries no client address. The
+# kairos-query Worker must exist on the account for the deploy to pass;
+# without the binding the bot falls back to the public URL.
+[[services]]
+binding = "QUERY"
+service = "kairos-query"

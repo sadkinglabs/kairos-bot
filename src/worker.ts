@@ -25,6 +25,8 @@ export interface Env {
   REGISTRY_BASE_URL?: string;
   /** The query API (the search syntax as JSON), on its own hostname. */
   QUERY_BASE_URL?: string;
+  /** The query API as a service binding, when deployed with one. */
+  QUERY?: Fetcher;
   SITE_BASE_URL?: string;
 }
 
@@ -64,7 +66,7 @@ export async function handle(request: Request, env: Env, deps: { registry: Regis
     siteBase: env.SITE_BASE_URL ?? DEFAULT_SITE,
     apiBase: env.QUERY_BASE_URL ?? DEFAULT_QUERY,
     random: deps.random ?? Math.random,
-    fetchImpl: deps.fetchImpl,
+    fetchImpl: deps.fetchImpl ?? (env.QUERY ? (u: string, i?: RequestInit) => env.QUERY!.fetch(u, i) : undefined),
   };
   const name = interaction.data?.name ?? "";
   try {
