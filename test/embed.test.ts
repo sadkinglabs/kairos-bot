@@ -1,12 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { CREDIT, MAX_DESCRIPTION, cardEmbed, colour, printingEmbed, searchEmbed, statsLine, thresholdText, typeLine } from "../src/embed";
-import type { Card, Printing } from "../src/registry";
-import { cards, printings, sets } from "./fixtures";
+import { CREDIT, MAX_DESCRIPTION, cardEmbed, colour, faceDiff, foundEmbeds, historyEmbed, pageRows, printingEmbed, searchEmbed, setEmbed, smallEmbed, statsLine, thresholdText, typeLine } from "../src/embed";
+import type { ActionButton, LinkButton, SelectMenu } from "../src/discord";
+import type { Card, Printing, SetObject } from "../src/registry";
+import { cards, printings, setObjects, sets } from "./fixtures";
 
 const setNames = new Map(sets.map((s) => [s.set_code, s.set_name]));
 const troll = cards["C000927"] as Card;
 const knight = cards["C000429"] as Card;
 const druid = cards["C000459"] as Card;
+const bears = cards["C000230"] as Card;
+const labels = (row: { components: unknown[] }) => (row.components as (LinkButton | ActionButton)[]).map((b) => b.label);
+const links = (row: { components: unknown[] }) => (row.components as LinkButton[]).map((b) => [b.label, b.url]);
 const emojis = new Map([["Air", "<:thr_air:1>"], ["Earth", "<:thr_earth:2>"], ["Fire", "<:thr_fire:3>"], ["Water", "<:thr_water:4>"]]);
 const none = new Map<string, string>();
 
@@ -33,14 +37,22 @@ describe("cardEmbed", () => {
     const e = embeds[0]!;
     expect(e.title).toBe("Moss Troll");
     expect(e.url).toBe("https://kairosarchive.net/cards/C000927");
-    expect(e.description).toBe("Minion — Ordinary Giant\nMana: 3 · Threshold: <:thr_water:4> · Power: 3\nPresent in Gothic\nC000927 · P002719\n\nStealth\nLoses Stealth if it moves.");
+    expect(e.description).toBe("Minion — Ordinary Giant\nMana: 3 · Threshold: <:thr_water:4> · Power: 3\nPresent in Gothic\nC000927 · P002719\n\nStealth\nLoses Stealth if it moves.\n\n*This card has recorded errata.*");
     expect(e.color).toBe(0x2b6cb0);
     expect(e.image?.url).toMatch(/P002719\..*\.normal\.webp$/);
     expect(e.footer?.text).toBe(CREDIT);
-    expect(components[0]!.components.map((b) => [b.label, b.url])).toEqual([
+    // Two printings: the picker row comes first, the links after it.
+    const picker = components[0]!.components[0] as SelectMenu;
+    expect(picker.custom_id).toBe("pick:C000927");
+    expect(picker.options.map((o) => [o.label, o.value, o.default ?? false])).toEqual([["Gothic · Booster · Standard", "P002719", true], ["Gothic · Booster · Foil", "P002720", false]]);
+    expect(links(components[1]!)).toEqual([
       ["Open on Kairos Archive", "https://kairosarchive.net/cards/C000927"],
       ["JSON", "https://api.kairosarchive.net/v3/cards/C000927.json"],
     ]);
+  });
+  it("offers no picker for a card with one printing", () => {
+    const one = { ...troll, printings: troll.printings.slice(0, 1) };
+    expect(cardEmbed(one, setNames, none).components).toHaveLength(1);
   });
   it("adds a second embed for a back face", () => {
     const { embeds } = cardEmbed(druid, setNames, none);
@@ -65,7 +77,64 @@ describe("printingEmbed", () => {
     expect(e.description).toContain("Gothic · Booster · Standard · Art by Dan Seagrave\nC000927 · P002719\n\n");
     expect(e.description).toContain("*Moss grows fat on a troll in stone.*");
     expect(e.image?.url).toBe(p.image_urls!.normal);
-    expect(components[0]!.components.map((b) => b.label)).toEqual(["Open on Kairos Archive", "Card", "JSON"]);
+    expect((components[0]!.components[0] as SelectMenu).options.find((o) => o.default)?.value).toBe("P002719");
+    expect(labels(components[1]!)).toEqual(["Open on Kairos Archive", "Card", "JSON"]);
+  });
+});
+
+describe("pageRows", () => {
+  it("offers Next on the first page, both in the middle, and nothing for a query too long to carry", () => {
+    expect(labels(pageRows({ q: "e:fire", page: 1, page_size: 5, has_more: true })[0]!)).toEqual(["Next 5"]);
+    const middle = pageRows({ q: "e:fire", page: 3, page_size: 5, has_more: true })[0]!;
+    expect((middle.components as ActionButton[]).map((b) => b.custom_id)).toEqual(["page:2:e:fire", "page:4:e:fire"]);
+    expect(pageRows({ q: "e:fire", page: 1, page_size: 5, has_more: false })).toEqual([]);
+    expect(pageRows({ q: "x".repeat(95), page: 1, page_size: 5, has_more: true })).toEqual([]);
+  });
+});
+
+describe("foundEmbeds", () => {
+  it("shows one card in full and several as small embeds, naming the misses", () => {
+    const one = foundEmbeds([{ card: troll, shown: null }], ["Foo"], setNames, none);
+    expect(one.embeds[0]!.image).toBeDefined();
+    expect(one.content).toBe("No card named “Foo”.");
+    const two = foundEmbeds([{ card: troll, shown: null }, { card: bears, shown: null }], [], setNames, none);
+    expect(two.content).toBeUndefined();
+    expect(two.embeds.map((e) => e.title)).toEqual(["Moss Troll", "Polar Bears"]);
+    expect(two.embeds[1]!.thumbnail?.url).toMatch(/small\.webp$/);
+    expect(two.embeds[1]!.footer?.text).toBe(CREDIT);
+    expect(labels(two.components[0]!)).toEqual(["Moss Troll", "Polar Bears"]);
+    expect(smallEmbed(bears, setNames, none).description).toBe("Minion — Ordinary Beast · Mana: 2 · Threshold: 1 Water · Power: 2 · Alpha · Beta · C000230");
+  });
+});
+
+describe("historyEmbed", () => {
+  it("lists each face against the one before, and earlier names", () => {
+    const { embeds, components } = historyEmbed(troll, "https://site.test");
+    const d = embeds[0]!.description!;
+    expect(embeds[0]!.title).toBe("History of Moss Troll");
+    expect(d).toContain("2 faces on record · this card has errata.\n\n**2025-12-05** · first face on record, as printed on the card · until 2026-09-15\n\n");
+    expect(d).toContain("**2026-09-15** · as the official API served it · current\nMana: 4 → 3\nRules text, before:\n> Stealth\n> Loses Stealth if it moves or attacks.\nAfter:\n> Stealth\n> Loses Stealth if it moves.");
+    expect(d).toContain("**2025-12-05** · named “Moss Troll of the Fen” until 2026-01-10");
+    expect(labels(components[0]!)).toEqual(["Card", "All changes", "JSON"]);
+  });
+  it("says so when nothing changed", () => {
+    expect(historyEmbed(bears, "https://site.test").embeds[0]!.description).toBe("No changes recorded. One face on record since 2026-08-19.");
+  });
+  it("diffs only what differs", () => {
+    const [a, b] = troll.card_history;
+    expect(faceDiff(a!, a!)).toEqual([]);
+    expect(faceDiff(a!, { ...b!, subtypes: ["Giant", "Troll"], rules_text: a!.rules_text })).toEqual(["Subtypes: Giant → Giant, Troll", "Mana: 4 → 3"]);
+  });
+});
+
+describe("setEmbed", () => {
+  it("gives the numbers, some names and a sample's art", () => {
+    const entry = sets.find((s) => s.set_code === "006")!;
+    const { embeds, components } = setEmbed(entry, setObjects["006"] as SetObject, troll, "https://site.test");
+    expect(embeds[0]!.title).toBe("Gothic");
+    expect(embeds[0]!.description).toBe("Released 2025-12-05\n107 cards · 214 printings\nSet code 006\n\nMoss Troll");
+    expect(embeds[0]!.thumbnail?.url).toBe(troll.image_urls!.small);
+    expect(links(components[0]!)[1]).toEqual(["Search this set", "https://site.test/search?q=s%3A006"]);
   });
 });
 

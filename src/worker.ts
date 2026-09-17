@@ -14,7 +14,7 @@
  * why the helpers and constants live here. */
 import { InteractionType, ResponseType, json, whisper, type Interaction } from "./discord";
 import { applicationEmojis } from "./emoji";
-import { autocomplete, byId, card, random, search, syntax, type Services } from "./handlers";
+import { autocomplete, byId, card, component, findCards, history, random, search, set, setAutocomplete, syntax, type Services } from "./handlers";
 import { Registry, type Fetch } from "./registry";
 import { verifySignature } from "./verify";
 
@@ -71,7 +71,9 @@ export async function handle(request: Request, env: Env, deps: { registry: Regis
   const name = interaction.data?.name ?? "";
   try {
     if (interaction.type === InteractionType.APPLICATION_COMMAND_AUTOCOMPLETE) {
-      return name === "card" ? await autocomplete(interaction, services) : json({ type: ResponseType.APPLICATION_COMMAND_AUTOCOMPLETE_RESULT, data: { choices: [] } });
+      if (name === "card" || name === "history") return await autocomplete(interaction, services);
+      if (name === "set") return await setAutocomplete(interaction, services);
+      return json({ type: ResponseType.APPLICATION_COMMAND_AUTOCOMPLETE_RESULT, data: { choices: [] } });
     }
     if (interaction.type === InteractionType.APPLICATION_COMMAND) {
       switch (name) {
@@ -80,9 +82,13 @@ export async function handle(request: Request, env: Env, deps: { registry: Regis
         case "random": return await random(interaction, services);
         case "search": return await search(interaction, services);
         case "syntax": return syntax(interaction, services);
-        default: return whisper(`I do not know a /${name} command. Try /card, /id, /random, /search or /syntax.`);
+        case "history": return await history(interaction, services);
+        case "set": return await set(interaction, services);
+        case "Find cards": return await findCards(interaction, services);
+        default: return whisper(`I do not know a /${name} command. Try /card, /id, /random, /search, /syntax, /history or /set.`);
       }
     }
+    if (interaction.type === InteractionType.MESSAGE_COMPONENT) return await component(interaction, services);
     return json({ error: "unsupported interaction type" }, 400);
   } catch (err) {
     console.error(err);

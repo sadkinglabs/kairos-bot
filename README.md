@@ -1,6 +1,6 @@
 # kairos-bot
 
-Kairos Archive's Discord bot for *Sorcery: Contested Realm*. Slash commands that show a card, a printing, a random card, or link a search, served from [api.kairosarchive.net](https://kairosarchive.net/docs) on a Cloudflare Worker.
+Kairos Archive's Discord bot for *Sorcery: Contested Realm*. Slash commands that show a card, a printing, a set, a card's history, a random card or a search, and a right-click menu entry that finds the cards a message names, served from [api.kairosarchive.net](https://kairosarchive.net/docs) on a Cloudflare Worker.
 
 | Command | What it does |
 |---|---|
@@ -9,6 +9,11 @@ Kairos Archive's Discord bot for *Sorcery: Contested Realm*. Slash commands that
 | `/random` | A random card. |
 | `/search query` | The first five matches for a query in the [search syntax](https://kairosarchive.net/syntax), each with its art, and the way to the rest. Answered by the query API on query.kairosarchive.net. |
 | `/syntax` | The search syntax on one screen, shown to you alone. |
+| `/history name` | Every face the card has had, oldest first, each change against the one before (mana, stats, thresholds, rules text), and any earlier names. Dates are when the registry recorded a face. |
+| `/set name` | A set by name or code: release date, how many cards and printings, some of its cards, and a search for all of them. |
+| **Find cards** (right-click a message → Apps) | Every `[[card name]]` in the message, up to five, as small embeds with their art; one card comes in full. A message with no brackets is tried as one name. |
+
+A card message carries a **printing picker** when the card has more than one printing: choose one and the message becomes that printing, with its own art, artist and flavour text. Search results carry **Next 5** and **Previous** buttons that turn the page in place. Both are message components: Discord sends the click to the same URL as a command, and the bot answers with a replacement message.
 
 Every card embed carries the type line, mana, threshold, power (attack and defense when they differ), life, the sets, which printing is shown in words ("Shown: Gothic · Booster · Standard, art by Dan Seagrave"), the card's codex id and printing id, the rules text, and the publisher credit. Thresholds are drawn with the game's element symbols once the register script has uploaded them as application emojis; without them they read as words ("1 Fire").
 
@@ -23,13 +28,13 @@ Files:
 ```
 src/index.ts       the entry module: only the default export, as the runtime requires
 src/worker.ts      verify, ping, route; the Env the Worker reads
-src/handlers.ts    one function per command, plus autocomplete
+src/handlers.ts    one function per command and menu entry, the component clicks, and autocomplete
 src/embed.ts       the embed wording, colours and links
 src/registry.ts    versions.json → release root → index and objects, cached per isolate
 src/names.ts       name matching and id parsing
 src/emoji.ts       application emoji lookup for the threshold symbols
 src/discord.ts     the slice of Discord's protocol the bot speaks
-src/commands.ts    the slash commands, as data
+src/commands.ts    the slash commands and the message-menu entry, as data
 scripts/register.mjs   pushes commands.ts to Discord and uploads the emojis
 assets/emoji/      the four element symbols
 ```

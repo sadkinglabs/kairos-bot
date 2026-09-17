@@ -35,6 +35,42 @@ export function resolveName(cards: IndexCard[], text: string): IndexCard | null 
   return matchNames(cards, text, 1)[0] ?? null;
 }
 
+/** The card names a message calls out as [[Polar Bears]]: in order of
+ * appearance, without repeats, at most `limit`. Brackets around nothing
+ * are ignored. */
+export function bracketedNames(text: string, limit = 5): string[] {
+  const seen = new Set<string>();
+  const names: string[] = [];
+  for (const m of text.matchAll(/\[\[([^[\]]{1,80})\]\]/g)) {
+    const name = m[1]!.trim();
+    const key = fold(name);
+    if (!key || seen.has(key)) continue;
+    seen.add(key);
+    names.push(name);
+    if (names.length === limit) break;
+  }
+  return names;
+}
+
+/** Sets matching `text` by code ("006", "6") or by name, best first. */
+export function matchSets<T extends { set_code: string; set_name: string }>(sets: T[], text: string, limit = 25): T[] {
+  const q = fold(text);
+  if (!q) return sets.slice(0, limit);
+  const asCode = /^\d{1,3}$/.test(q) ? q.padStart(3, "0") : null;
+  const ranked: { set: T; rank: number }[] = [];
+  for (const set of sets) {
+    const name = fold(set.set_name);
+    let rank: number;
+    if (set.set_code === asCode || name === q) rank = 0;
+    else if (name.startsWith(q)) rank = 1;
+    else if (name.includes(q)) rank = 2;
+    else continue;
+    ranked.push({ set, rank });
+  }
+  ranked.sort((a, b) => a.rank - b.rank || a.set.set_code.localeCompare(b.set.set_code));
+  return ranked.slice(0, limit).map((r) => r.set);
+}
+
 const ID = /^\s*([CP])\s*0*(\d{1,6})\s*$/i;
 
 /** "C230", "c000230", "P 937" read as ids; anything else is not one. */

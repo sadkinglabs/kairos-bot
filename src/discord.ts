@@ -12,8 +12,14 @@ export const InteractionType = {
 export const ResponseType = {
   PONG: 1,
   CHANNEL_MESSAGE_WITH_SOURCE: 4,
+  /** Replace the message the component sits on, in place. */
+  UPDATE_MESSAGE: 7,
   APPLICATION_COMMAND_AUTOCOMPLETE_RESULT: 8,
 } as const;
+
+/** Application command types: a slash command, or an entry in the
+ * right-click menu of a message. */
+export const CommandType = { CHAT_INPUT: 1, MESSAGE: 3 } as const;
 
 export const OptionType = { STRING: 3, INTEGER: 4, BOOLEAN: 5 } as const;
 
@@ -31,7 +37,18 @@ export interface InteractionOption {
 export interface Interaction {
   type: number;
   id?: string;
-  data?: { name: string; options?: InteractionOption[] };
+  data?: {
+    /** Slash commands and menu entries carry a name; components carry a custom_id. */
+    name?: string;
+    type?: number;
+    options?: InteractionOption[];
+    custom_id?: string;
+    /** The chosen values of a select menu. */
+    values?: string[];
+    /** A message-menu command: the message it was opened on, resolved. */
+    target_id?: string;
+    resolved?: { messages?: Record<string, { content?: string }> };
+  };
 }
 
 /** Discord's embed object, the fields the bot fills. Limits worth knowing:
@@ -49,7 +66,15 @@ export interface Embed {
 /** A row of link buttons under a message: style 5 buttons carry a URL
  * and never call back, so they need no handler. */
 export interface LinkButton { type: 2; style: 5; label: string; url: string }
-export interface ActionRow { type: 1; components: LinkButton[] }
+/** A grey button that calls back with its custom_id (at most 100 characters). */
+export interface ActionButton { type: 2; style: 2; label: string; custom_id: string; disabled?: boolean }
+export interface SelectOption { label: string; value: string; description?: string; default?: boolean }
+/** A string select menu: one per row, up to 25 options, calls back with the chosen values. */
+export interface SelectMenu { type: 3; custom_id: string; placeholder?: string; options: SelectOption[] }
+export interface ActionRow { type: 1; components: (LinkButton | ActionButton | SelectMenu)[] }
+
+/** Discord's limit on a component's custom_id. */
+export const CUSTOM_ID_MAX = 100;
 
 export interface MessageData {
   content?: string;
@@ -62,8 +87,27 @@ export function linkRow(links: { label: string; url: string }[]): ActionRow {
   return { type: 1, components: links.map((l) => ({ type: 2, style: 5, label: l.label, url: l.url })) };
 }
 
+export function buttonRow(buttons: { label: string; custom_id: string; disabled?: boolean }[]): ActionRow {
+  return { type: 1, components: buttons.map((b) => ({ type: 2, style: 2, label: b.label, custom_id: b.custom_id, ...(b.disabled ? { disabled: true } : {}) })) };
+}
+
+export function selectRow(custom_id: string, placeholder: string, options: SelectOption[]): ActionRow {
+  return { type: 1, components: [{ type: 3, custom_id, placeholder, options: options.slice(0, 25) }] };
+}
+
 export function message(data: MessageData): Response {
   return json({ type: ResponseType.CHANNEL_MESSAGE_WITH_SOURCE, data });
+}
+
+/** Replace the message a component was clicked on. */
+export function update(data: MessageData): Response {
+  return json({ type: ResponseType.UPDATE_MESSAGE, data });
+}
+
+/** The text of the message a message-menu command was opened on. */
+export function targetMessage(interaction: Interaction): string {
+  const id = interaction.data?.target_id;
+  return (id && interaction.data?.resolved?.messages?.[id]?.content) || "";
 }
 
 /** A reply only the caller sees: for "no such card" and the like, so a

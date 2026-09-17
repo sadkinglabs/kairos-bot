@@ -59,6 +59,48 @@ export interface Card extends Face {
   image_urls: ImageUrls | null;
   image_status: string;
   back: Face | null;
+  /** The card object carries a summary of each printing and its histories. */
+  printings: PrintingSummary[];
+  name_history: { name: string; valid_from: string; valid_to: string | null }[];
+  card_history: HistoryRow[];
+}
+
+export interface PrintingSummary {
+  printing_id: string;
+  slug: string;
+  set_code: string;
+  set_name: string;
+  released_at: string | null;
+  product: string;
+  finish: string;
+  printed_as_current: boolean | null;
+  retired_at: string | null;
+}
+
+/** One state of the card's gameplay face: the values it had between
+ * two dates. `source` is "api" when the official API served the face and
+ * "card" when it was recorded from the printed card. */
+export interface HistoryRow extends Face {
+  valid_from: string;
+  valid_to: string | null;
+  source: "api" | "card";
+  keywords: string[];
+  back: Face | null;
+}
+
+export interface SetEntry {
+  set_code: string;
+  set_name: string;
+  released_at: string | null;
+  cards: number;
+  printings: number;
+  api_url: string;
+  kairos_url: string;
+}
+
+/** sets/{code}.json: the entry plus every card in the set by name. */
+export interface SetObject extends Omit<SetEntry, "cards"> {
+  cards: { codex_id: string; name: string; printing_ids: string[] }[];
 }
 
 export interface ImageUrls { small: string; normal: string; large: string; original: string }
@@ -85,7 +127,7 @@ export interface Printing {
 
 export interface Versions { latest: Record<string, string>; releases: { tag: string }[] }
 
-export interface Release { tag: string; root: string; cards: IndexCard[]; sets: Map<string, string>; fetchedAt: number }
+export interface Release { tag: string; root: string; cards: IndexCard[]; sets: Map<string, string>; setList: SetEntry[]; fetchedAt: number }
 
 /** How long an isolate trusts its resolved release before asking
  * versions.json again. */
@@ -122,11 +164,11 @@ export class Registry {
     if (!tag) throw new Error("versions.json names no v3 release");
     const root = `${this.baseUrl}/${tag}`;
     if (previous && previous.tag === tag) return { ...previous, fetchedAt: this.now() };
-    const [cards, sets] = await Promise.all([
+    const [cards, setList] = await Promise.all([
       this.getJson<IndexCard[]>(`${root}/index/cards.json`, IMMUTABLE),
-      this.getJson<{ set_code: string; set_name: string }[]>(`${root}/sets.json`, IMMUTABLE),
+      this.getJson<SetEntry[]>(`${root}/sets.json`, IMMUTABLE),
     ]);
-    return { tag, root, cards, sets: new Map(sets.map((s) => [s.set_code, s.set_name])), fetchedAt: this.now() };
+    return { tag, root, cards, sets: new Map(setList.map((s) => [s.set_code, s.set_name])), setList, fetchedAt: this.now() };
   }
 
   async card(codexId: string): Promise<Card | null> {
@@ -137,6 +179,11 @@ export class Registry {
   async printing(printingId: string): Promise<Printing | null> {
     const { root } = await this.current();
     return this.getJsonOrNull<Printing>(`${root}/printings/${printingId}.json`);
+  }
+
+  async set(setCode: string): Promise<SetObject | null> {
+    const { root } = await this.current();
+    return this.getJsonOrNull<SetObject>(`${root}/sets/${setCode}.json`);
   }
 
   private async getJson<T>(url: string, init: RequestInit): Promise<T> {

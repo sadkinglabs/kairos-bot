@@ -20,14 +20,14 @@ const list = {
   ],
 };
 
-async function post(query: string, overrides: Record<string, unknown> = {}) {
-  const body = JSON.stringify({ type: 2, data: { name: "search", options: [{ type: 3, name: "query", value: query }] } });
+async function post(query: string, overrides: Record<string, unknown> = {}, raw?: unknown) {
+  const body = JSON.stringify(raw ?? { type: 2, data: { name: "search", options: [{ type: 3, name: "query", value: query }] } });
   const ts = "1700000000";
   const sig = hex(await crypto.subtle.sign("Ed25519", pair.privateKey, new TextEncoder().encode(ts + body)));
   const req = new Request("https://bot.test/", { method: "POST", body, headers: { "x-signature-ed25519": sig, "x-signature-timestamp": ts } });
   const f = fakeFetch(overrides);
   const res = await handle(req, env, { registry: new Registry(BASE, f), fetchImpl: f });
-  return { body: (await res.json()) as { data: { content?: string; flags?: number; embeds?: { title: string; description: string; url: string; thumbnail?: { url: string }; footer?: { text: string } }[]; components?: { components: { label: string; url: string }[] }[] } }, calls: f.calls };
+  return { body: (await res.json()) as { type: number; data: { content?: string; flags?: number; embeds?: { title: string; description: string; url: string; thumbnail?: { url: string }; footer?: { text: string } }[]; components?: { components: { label: string; url: string }[] }[] } }, calls: f.calls };
 }
 
 describe("/search with the query API", () => {
@@ -45,8 +45,18 @@ describe("/search with the query API", () => {
     expect(second!.description).toBe("Minion — Exceptional Mortal · 5 · Attack: 5 / Defense: 3 · Power: 4");
     expect(second!.thumbnail).toBeUndefined();
     expect(second!.footer!.text).toContain("release v3.9.0");
-    expect(body.data.components![0]!.components.map((b) => b.label)).toEqual(["All results", "JSON", "Syntax"]);
-    expect(body.data.components![0]!.components[0]!.url).toBe("https://site.test/search?q=t%3Aminion%20e%3Afire");
+    expect(body.data.components![0]!.components.map((b) => b.label)).toEqual(["Next 5"]);
+    expect(body.data.components![1]!.components.map((b) => b.label)).toEqual(["All results", "JSON", "Syntax"]);
+    expect(body.data.components![1]!.components[0]!.url).toBe("https://site.test/search?q=t%3Aminion%20e%3Afire");
+  });
+  it("turns the page in place when Next is clicked", async () => {
+    const page2 = { ...list, page: 2, has_more: false, data: [list.data[1]] };
+    const { body, calls } = await post("t:minion e:fire", { "cards?q=t%3Aminion%20e%3Afire&page_size=5&page=2": page2 }, { type: 3, data: { custom_id: "page:2:t:minion e:fire" } });
+    expect(calls).toContain(`${BASE}/cards?q=t%3Aminion%20e%3Afire&page_size=5&page=2`);
+    expect(body.type).toBe(7);
+    expect(body.data.content).toBe("**32 cards** for `t:minion e:fire` · showing 6–6 · 2 more mention it in their rules text");
+    expect(body.data.embeds!.map((e) => e.title)).toEqual(["Black Knight"]);
+    expect(body.data.components![0]!.components.map((b) => b.label)).toEqual(["Previous"]);
   });
   it("whispers the parser's messages for a query the API rejects", async () => {
     const err = new Response(JSON.stringify({ object: "error", status: 400, code: "bad_query", details: "The query could not be read.", warnings: ["cost: \">3\" is not a number"] }), { status: 400, headers: { "content-type": "application/json" } });

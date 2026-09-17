@@ -1,7 +1,7 @@
 /** A fetch that serves the fixtures the way api.kairosarchive.net does,
  * and remembers every URL asked for, so a test can say "one fetch of the
  * index, none of versions.json". */
-import { cards, index, printings, sets, versions } from "./fixtures";
+import { cards, index, printings, setObjects, sets, versions } from "./fixtures";
 import type { Fetch } from "../src/registry";
 
 export const BASE = "https://api.test";
@@ -31,5 +31,7 @@ function route(path: string): unknown {
   if (card) return cards[card[1]!];
   const printing = /^printings\/(P\d{6})\.json$/.exec(rest);
   if (printing) return printings[printing[1]!];
+  const set = /^sets\/(\d{3})\.json$/.exec(rest);
+  if (set) return setObjects[set[1]!];
   return undefined;
 }

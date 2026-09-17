@@ -19,6 +19,10 @@ async function post(body: unknown, sign = true): Promise<Response> {
 
 const command = (name: string, options: { name: string; value: string; focused?: boolean }[] = [], type = 2) =>
   ({ type, data: { name, options: options.map((o) => ({ type: 3, ...o })) } });
+const onMessage = (content: string) => ({ type: 2, data: { name: "Find cards", type: 3, target_id: "m1", resolved: { messages: { m1: { content } } } } });
+const click = (custom_id: string, values?: string[]) => ({ type: 3, data: { custom_id, ...(values ? { values } : {}) } });
+type Body = { type: number; data: { content?: string; flags?: number; embeds?: { title: string; description?: string; thumbnail?: { url: string } }[]; components?: { components: { label?: string; custom_id?: string; options?: { value: string; default?: boolean }[] }[] }[] } };
+const read = async (body: unknown) => (await (await post(body)).json()) as Body;
 
 describe("handle", () => {
   it("answers GET with a line of text and refuses other methods", async () => {
@@ -62,6 +66,48 @@ describe("handle", () => {
     expect(r.data.embeds[0]!.title).toBe("Avatar of Air");
     const s = (await (await post(command("search", [{ name: "query", value: "e:fire" }]))).json()) as { data: { embeds: { url: string }[] } };
     expect(s.data.embeds[0]!.url).toBe("https://site.test/search?q=e%3Afire");
+  });
+  it("/history and /set answer by name or code, with set suggestions", async () => {
+    const h = await read(command("history", [{ name: "name", value: "moss troll" }]));
+    expect(h.data.embeds![0]!.title).toBe("History of Moss Troll");
+    expect(h.data.embeds![0]!.description).toContain("Mana: 4 → 3");
+    const miss = await read(command("history", [{ name: "name", value: "xyzzy" }]));
+    expect(miss.data.flags).toBe(64);
+    const byName = await read(command("set", [{ name: "set", value: "goth" }]));
+    expect(byName.data.embeds![0]!.title).toBe("Gothic");
+    expect(byName.data.embeds![0]!.thumbnail?.url).toMatch(/small\.webp$/);
+    const byCode = await read(command("set", [{ name: "set", value: "4" }]));
+    expect(byCode.data.embeds![0]!.title).toBe("Arthurian Legends");
+    expect(byCode.data.embeds![0]!.description).toContain("Black Knight, Dame Britomart, Druid");
+    const none = await read(command("set", [{ name: "set", value: "omega" }]));
+    expect(none.data.content).toBe("No set named “omega” in the archive.");
+    const suggest = await read(command("set", [{ name: "set", value: "a", focused: true }], 4));
+    expect(suggest.type).toBe(8);
+    expect((suggest.data as unknown as { choices: { name: string; value: string }[] }).choices.map((c) => c.value)).toEqual(["001", "004", "002", "005"]);
+  });
+  it("Find cards reads [[names]] from the message, or the whole message", async () => {
+    const two = await read(onMessage("is [[polar bears]] better than [[Moss Troll]]? [[Nope]] [[polar bears]]"));
+    expect(two.data.embeds!.map((e) => e.title)).toEqual(["Polar Bears", "Moss Troll"]);
+    expect(two.data.content).toBe("No card named “Nope”.");
+    expect(two.data.flags).toBeUndefined();
+    const whole = await read(onMessage("polar bears"));
+    expect(whole.data.embeds![0]!.title).toBe("Polar Bears");
+    expect(whole.data.embeds![0]!.description).toContain("Shown: Beta · Booster · Standard");
+    const nothing = await read(onMessage("[[xyzzy]]"));
+    expect(nothing.data.content).toBe("No card named “xyzzy” in the archive.");
+    expect(nothing.data.flags).toBe(64);
+    const hint = await read(onMessage("a".repeat(200)));
+    expect(hint.data.content).toContain("double brackets");
+  });
+  it("the printing picker replaces the message with that printing", async () => {
+    const picked = await read(click("pick:C000927", ["P002720"]));
+    expect(picked.type).toBe(7);
+    expect(picked.data.embeds![0]!.title).toBe("Moss Troll — Gothic · Booster · Foil");
+    expect(picked.data.components![0]!.components[0]!.options!.find((o) => o.default)?.value).toBe("P002720");
+    const wrong = await read(click("pick:C000927", ["P000937"]));
+    expect(wrong.data.content).toBe("No printing P000937 for C000927.");
+    const stale = await read(click("what:ever"));
+    expect(stale.data.content).toContain("older message");
   });
   it("whispers on an unknown command and when the registry is down", async () => {
     const unknown = (await (await post(command("nope"))).json()) as { data: { content: string } };

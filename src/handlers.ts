@@ -1,12 +1,12 @@
 /** One function per slash command, plus the autocomplete. Each takes the
  * parsed interaction and the services it needs and returns Discord's
  * response body, so the router in index.ts stays a switch. */
-import { EPHEMERAL, choices, focusedValue, message, optionValue, whisper, type Interaction } from "./discord";
-import { cardEmbed, printingEmbed, resultsEmbed, searchEmbed, syntaxEmbed } from "./embed";
+import { EPHEMERAL, choices, focusedValue, message, optionValue, targetMessage, update, whisper, type Interaction } from "./discord";
+import { cardEmbed, foundEmbeds, historyEmbed, printingEmbed, resultsEmbed, searchEmbed, setEmbed, syntaxEmbed } from "./embed";
 import { queryCards } from "./query";
 import type { EmojiMap } from "./emoji";
-import { matchNames, parseId, resolveName } from "./names";
-import type { Registry } from "./registry";
+import { bracketedNames, matchNames, matchSets, parseId, resolveName } from "./names";
+import type { Card, Registry } from "./registry";
 
 import type { Fetch } from "./registry";
 /** apiBase is the query API's base (query.kairosarchive.net), not the registry's. */
@@ -18,17 +18,88 @@ export async function autocomplete(interaction: Interaction, s: Services): Promi
   return choices(matchNames(cards, text).map((c) => ({ name: c.name.slice(0, 100), value: c.codex_id })));
 }
 
-/** /card: the option is a codex id when the person picked a suggestion,
- * and free text when they pressed enter on what they typed. */
-export async function card(interaction: Interaction, s: Services): Promise<Response> {
-  const text = optionValue(interaction, "name") ?? "";
-  const { cards, sets } = await s.registry.current();
+export async function setAutocomplete(interaction: Interaction, s: Services): Promise<Response> {
+  const { setList } = await s.registry.current();
+  return choices(matchSets(setList, focusedValue(interaction)).map((e) => ({ name: `${e.set_name} (${e.set_code})`.slice(0, 100), value: e.set_code })));
+}
+
+/** The card the `name` option means: a codex id when the person picked
+ * a suggestion, free text when they pressed enter on what they typed. */
+async function namedCard(text: string, s: Services): Promise<Card | { miss: string }> {
+  const { cards } = await s.registry.current();
   const asId = parseId(text);
   const codexId = asId?.kind === "card" ? asId.id : resolveName(cards, text)?.codex_id;
-  if (!codexId) return whisper(`No card named “${text.trim()}” in the archive.`);
+  if (!codexId) return { miss: `No card named “${text.trim()}” in the archive.` };
   const found = await s.registry.card(codexId);
-  if (!found) return whisper(`No card ${codexId} in the archive.`);
+  return found ?? { miss: `No card ${codexId} in the archive.` };
+}
+
+export async function card(interaction: Interaction, s: Services): Promise<Response> {
+  const found = await namedCard(optionValue(interaction, "name") ?? "", s);
+  if ("miss" in found) return whisper(found.miss);
+  const { sets } = await s.registry.current();
   return message(cardEmbed(found, sets, s.emojis, await shownPrinting(found, s)));
+}
+
+/** /history: the card's faces over time. */
+export async function history(interaction: Interaction, s: Services): Promise<Response> {
+  const found = await namedCard(optionValue(interaction, "name") ?? "", s);
+  if ("miss" in found) return whisper(found.miss);
+  return message(historyEmbed(found, s.siteBase));
+}
+
+/** /set: by code from a suggestion, or by whatever was typed. */
+export async function set(interaction: Interaction, s: Services): Promise<Response> {
+  const text = (optionValue(interaction, "set") ?? "").trim();
+  const { setList } = await s.registry.current();
+  const entry = matchSets(setList, text, 1)[0];
+  if (!entry) return whisper(`No set named “${text}” in the archive.`);
+  const object = await s.registry.set(entry.set_code);
+  if (!object) return whisper(`No set ${entry.set_code} in the archive.`);
+  const pick = object.cards[Math.floor(s.random() * object.cards.length)];
+  const sample = pick ? await s.registry.card(pick.codex_id) : null;
+  return message(setEmbed(entry, object, sample, s.siteBase));
+}
+
+/** "Find cards" on a message: every [[name]] in it, or the whole message
+ * as one name when nobody wrote brackets. */
+export async function findCards(interaction: Interaction, s: Services): Promise<Response> {
+  const text = targetMessage(interaction);
+  const names = bracketedNames(text);
+  if (!names.length && text.trim() && text.trim().length <= 80) names.push(text.trim());
+  if (!names.length) return whisper("Write card names in double brackets, like [[Polar Bears]], and try again.");
+  const { cards, sets } = await s.registry.current();
+  const found: { card: Card; shown: Awaited<ReturnType<typeof shownPrinting>> }[] = [];
+  const misses: string[] = [];
+  for (const name of names) {
+    const hit = resolveName(cards, name);
+    const full = hit ? await s.registry.card(hit.codex_id) : null;
+    if (full) found.push({ card: full, shown: found.length || names.length > 1 ? null : await shownPrinting(full, s) });
+    else misses.push(name);
+  }
+  if (!found.length) return whisper(`No card named ${misses.map((m) => `“${m}”`).join(", ")} in the archive.`);
+  return message(foundEmbeds(found, misses, sets, s.emojis));
+}
+
+/** A click on one of the bot's own components: the printing picker
+ * under a card, or the page buttons under search results. The message
+ * is replaced in place. */
+export async function component(interaction: Interaction, s: Services): Promise<Response> {
+  const id = interaction.data?.custom_id ?? "";
+  const pick = /^pick:(C\d{6})$/.exec(id);
+  if (pick) {
+    const printingId = interaction.data?.values?.[0] ?? "";
+    const [printing, owner] = await Promise.all([s.registry.printing(printingId), s.registry.card(pick[1]!)]);
+    if (!printing || !owner || printing.codex_id !== owner.codex_id) return whisper(`No printing ${printingId} for ${pick[1]}.`);
+    return update({ content: "", ...printingEmbed(printing, owner, s.emojis) });
+  }
+  const page = /^page:(\d{1,4}):([\s\S]+)$/.exec(id);
+  if (page) {
+    const answer = await queryCards(s.apiBase, page[2]!, RESULTS_SHOWN, s.fetchImpl, Number(page[1]));
+    if (answer.kind !== "list") return whisper("The query API did not answer. Use All results.");
+    return update(resultsEmbed(answer.list, s.siteBase, s.apiBase));
+  }
+  return whisper("That control is from an older message; run the command again.");
 }
 
 /** The printing a card embed pictures: its default printing, so the

@@ -21,11 +21,11 @@ export interface QueryError { object: "error"; status: number; code: string; det
 
 export type QueryAnswer = { kind: "list"; list: QueryList } | { kind: "error"; error: QueryError } | { kind: "unavailable" };
 
-/** Up to `limit` matches for `q`. "unavailable" for a network failure, a
+/** Up to `limit` matches for `q`, from page `page` of them. "unavailable" for a network failure, a
  * non-JSON answer or a 404 on the route itself (the API is not there);
  * "error" for a JSON error the API chose to send (a bad query). */
-export async function queryCards(apiBase: string, q: string, limit: number, fetchImpl: Fetch = (u, i) => fetch(u, i)): Promise<QueryAnswer> {
-  const url = `${apiBase}/cards?q=${encodeURIComponent(q)}&page_size=${limit}`;
+export async function queryCards(apiBase: string, q: string, limit: number, fetchImpl: Fetch = (u, i) => fetch(u, i), page = 1): Promise<QueryAnswer> {
+  const url = `${apiBase}/cards?q=${encodeURIComponent(q)}&page_size=${limit}${page > 1 ? `&page=${page}` : ""}`;
   try {
     const res = await fetchImpl(url, { headers: { "user-agent": USER_AGENT, accept: "application/json" } });
     if (!res.headers.get("content-type")?.includes("json")) return { kind: "unavailable" };

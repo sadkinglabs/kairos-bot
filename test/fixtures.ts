@@ -1,7 +1,7 @@
 /** Real records from the registry export, trimmed to a handful of cards,
  * served by a fake fetch in the tests. Regenerate from export/registry.json
  * when the record shape changes. */
-export const versions = { base_url: "https://api.test", latest: { v3: "v3.9.0" }, releases: [{ tag: "v3.9.0" }] };
+export const versions = {"base_url":"https://api.test","latest":{"v3":"v3.9.0"},"releases":[{"tag":"v3.9.0"}]};
 export const index = [
  {
   "codex_id": "C000230",
@@ -163,29 +163,191 @@ export const index = [
 export const sets = [
  {
   "set_code": "001",
-  "set_name": "Alpha"
+  "set_name": "Alpha",
+  "released_at": "2023-06-22",
+  "cards": 207,
+  "printings": 414,
+  "api_url": "https://api.kairosarchive.net/v3/sets/001.json",
+  "kairos_url": "https://kairosarchive.net/sets/001"
  },
  {
   "set_code": "002",
-  "set_name": "Beta"
+  "set_name": "Beta",
+  "released_at": "2023-10-06",
+  "cards": 107,
+  "printings": 214,
+  "api_url": "https://api.kairosarchive.net/v3/sets/002.json",
+  "kairos_url": "https://kairosarchive.net/sets/002"
  },
  {
   "set_code": "004",
-  "set_name": "Arthurian Legends"
+  "set_name": "Arthurian Legends",
+  "released_at": "2024-08-16",
+  "cards": 307,
+  "printings": 614,
+  "api_url": "https://api.kairosarchive.net/v3/sets/004.json",
+  "kairos_url": "https://kairosarchive.net/sets/004"
  },
  {
   "set_code": "005",
-  "set_name": "Dragonlord"
+  "set_name": "Dragonlord",
+  "released_at": "2025-03-14",
+  "cards": 7,
+  "printings": 14,
+  "api_url": "https://api.kairosarchive.net/v3/sets/005.json",
+  "kairos_url": "https://kairosarchive.net/sets/005"
  },
  {
   "set_code": "006",
-  "set_name": "Gothic"
+  "set_name": "Gothic",
+  "released_at": "2025-12-05",
+  "cards": 107,
+  "printings": 214,
+  "api_url": "https://api.kairosarchive.net/v3/sets/006.json",
+  "kairos_url": "https://kairosarchive.net/sets/006"
  },
  {
   "set_code": "999",
-  "set_name": "Promo"
+  "set_name": "Promo",
+  "released_at": null,
+  "cards": 207,
+  "printings": 414,
+  "api_url": "https://api.kairosarchive.net/v3/sets/999.json",
+  "kairos_url": "https://kairosarchive.net/sets/999"
  }
 ];
+/** sets/{code}.json: the entry with its cards. */
+export const setObjects: Record<string, unknown> = {
+ "999": {
+  "set_code": "999",
+  "set_name": "Promo",
+  "released_at": null,
+  "printings": 414,
+  "api_url": "https://api.kairosarchive.net/v3/sets/999.json",
+  "kairos_url": "https://kairosarchive.net/sets/999",
+  "cards": [
+   {
+    "codex_id": "C000393",
+    "name": "Avatar of Air",
+    "printing_ids": [
+     "P001592"
+    ]
+   },
+   {
+    "codex_id": "C000459",
+    "name": "Druid",
+    "printing_ids": [
+     "P001763",
+     "P001764"
+    ]
+   }
+  ]
+ },
+ "001": {
+  "set_code": "001",
+  "set_name": "Alpha",
+  "released_at": "2023-06-22",
+  "printings": 414,
+  "api_url": "https://api.kairosarchive.net/v3/sets/001.json",
+  "kairos_url": "https://kairosarchive.net/sets/001",
+  "cards": [
+   {
+    "codex_id": "C000393",
+    "name": "Avatar of Air",
+    "printing_ids": [
+     "P001590",
+     "P001591"
+    ]
+   },
+   {
+    "codex_id": "C000230",
+    "name": "Polar Bears",
+    "printing_ids": [
+     "P000935",
+     "P000936"
+    ]
+   }
+  ]
+ },
+ "002": {
+  "set_code": "002",
+  "set_name": "Beta",
+  "released_at": "2023-10-06",
+  "printings": 214,
+  "api_url": "https://api.kairosarchive.net/v3/sets/002.json",
+  "kairos_url": "https://kairosarchive.net/sets/002",
+  "cards": [
+   {
+    "codex_id": "C000230",
+    "name": "Polar Bears",
+    "printing_ids": [
+     "P000937",
+     "P000938"
+    ]
+   }
+  ]
+ },
+ "004": {
+  "set_code": "004",
+  "set_name": "Arthurian Legends",
+  "released_at": "2024-08-16",
+  "printings": 614,
+  "api_url": "https://api.kairosarchive.net/v3/sets/004.json",
+  "kairos_url": "https://kairosarchive.net/sets/004",
+  "cards": [
+   {
+    "codex_id": "C000429",
+    "name": "Black Knight",
+    "printing_ids": [
+     "P001700",
+     "P001701"
+    ]
+   },
+   {
+    "codex_id": "C000455",
+    "name": "Dame Britomart",
+    "printing_ids": [
+     "P001754",
+     "P001755"
+    ]
+   },
+   {
+    "codex_id": "C000459",
+    "name": "Druid",
+    "printing_ids": [
+     "P001762"
+    ]
+   }
+  ]
+ },
+ "005": {
+  "set_code": "005",
+  "set_name": "Dragonlord",
+  "released_at": "2025-03-14",
+  "printings": 14,
+  "api_url": "https://api.kairosarchive.net/v3/sets/005.json",
+  "kairos_url": "https://kairosarchive.net/sets/005",
+  "cards": []
+ },
+ "006": {
+  "set_code": "006",
+  "set_name": "Gothic",
+  "released_at": "2025-12-05",
+  "printings": 214,
+  "api_url": "https://api.kairosarchive.net/v3/sets/006.json",
+  "kairos_url": "https://kairosarchive.net/sets/006",
+  "cards": [
+   {
+    "codex_id": "C000927",
+    "name": "Moss Troll",
+    "printing_ids": [
+     "P002719",
+     "P002720"
+    ]
+   }
+  ]
+ }
+};
 export const cards: Record<string, unknown> = {
  "C000230": {
   "codex_id": "C000230",
@@ -233,7 +395,90 @@ export const cards: Record<string, unknown> = {
    "large": "https://api.kairosarchive.net/images/P000937.073378d31e35.large.webp",
    "original": "https://api.kairosarchive.net/images/P000937.073378d31e35.original.png"
   },
-  "image_status": "lowres"
+  "image_status": "lowres",
+  "printings": [
+   {
+    "printing_id": "P000935",
+    "slug": "001-polar_bears-b-s",
+    "set_code": "001",
+    "set_name": "Alpha",
+    "released_at": "2023-06-22",
+    "product": "Booster",
+    "finish": "Standard",
+    "printed_as_current": true,
+    "retired_at": null
+   },
+   {
+    "printing_id": "P000936",
+    "slug": "001-polar_bears-b-f",
+    "set_code": "001",
+    "set_name": "Alpha",
+    "released_at": "2023-06-22",
+    "product": "Booster",
+    "finish": "Foil",
+    "printed_as_current": true,
+    "retired_at": null
+   },
+   {
+    "printing_id": "P000937",
+    "slug": "002-polar_bears-b-s",
+    "set_code": "002",
+    "set_name": "Beta",
+    "released_at": "2023-10-06",
+    "product": "Booster",
+    "finish": "Standard",
+    "printed_as_current": true,
+    "retired_at": null
+   },
+   {
+    "printing_id": "P000938",
+    "slug": "002-polar_bears-b-f",
+    "set_code": "002",
+    "set_name": "Beta",
+    "released_at": "2023-10-06",
+    "product": "Booster",
+    "finish": "Foil",
+    "printed_as_current": true,
+    "retired_at": null
+   }
+  ],
+  "name_history": [
+   {
+    "name": "Polar Bears",
+    "valid_from": "2026-08-19",
+    "valid_to": null
+   }
+  ],
+  "card_history": [
+   {
+    "valid_from": "2026-08-19",
+    "valid_to": null,
+    "source": "api",
+    "type": "Minion",
+    "category": "Spell",
+    "rarity": "Ordinary",
+    "slot": "Ordinary",
+    "subtypes": [
+     "Beast"
+    ],
+    "elements": [
+     "Water"
+    ],
+    "keywords": [],
+    "umbrellas": [],
+    "cost": 2,
+    "attack": 2,
+    "defense": 2,
+    "power": 2,
+    "life": null,
+    "thr_air": 0,
+    "thr_earth": 0,
+    "thr_fire": 0,
+    "thr_water": 1,
+    "rules_text": "Can move as if the top and bottom edges of the realm were connected.",
+    "back": null
+   }
+  ]
  },
  "C000429": {
   "codex_id": "C000429",
@@ -281,7 +526,71 @@ export const cards: Record<string, unknown> = {
    "large": "https://api.kairosarchive.net/images/P001700.edac6e940026.large.webp",
    "original": "https://api.kairosarchive.net/images/P001700.edac6e940026.original.png"
   },
-  "image_status": "ok"
+  "image_status": "ok",
+  "printings": [
+   {
+    "printing_id": "P001700",
+    "slug": "004-black_knight-b-s",
+    "set_code": "004",
+    "set_name": "Arthurian Legends",
+    "released_at": "2024-08-16",
+    "product": "Booster",
+    "finish": "Standard",
+    "printed_as_current": true,
+    "retired_at": null
+   },
+   {
+    "printing_id": "P001701",
+    "slug": "004-black_knight-b-f",
+    "set_code": "004",
+    "set_name": "Arthurian Legends",
+    "released_at": "2024-08-16",
+    "product": "Booster",
+    "finish": "Foil",
+    "printed_as_current": true,
+    "retired_at": null
+   }
+  ],
+  "name_history": [
+   {
+    "name": "Black Knight",
+    "valid_from": "2026-08-19",
+    "valid_to": null
+   }
+  ],
+  "card_history": [
+   {
+    "valid_from": "2026-08-19",
+    "valid_to": null,
+    "source": "api",
+    "type": "Minion",
+    "category": "Spell",
+    "rarity": "Exceptional",
+    "slot": "Exceptional",
+    "subtypes": [
+     "Mortal"
+    ],
+    "elements": [
+     "Fire",
+     "Water"
+    ],
+    "keywords": [],
+    "umbrellas": [
+     "Knight"
+    ],
+    "cost": 5,
+    "attack": 5,
+    "defense": 3,
+    "power": 4,
+    "life": null,
+    "thr_air": 0,
+    "thr_earth": 0,
+    "thr_fire": 1,
+    "thr_water": 1,
+    "rules_text": "Costs (2) less to cast if you have more life than each opponent.",
+    "back": null
+   }
+  ]
  },
  "C000455": {
   "codex_id": "C000455",
@@ -332,7 +641,74 @@ export const cards: Record<string, unknown> = {
    "large": "https://api.kairosarchive.net/images/P001754.3faaa315d7d2.large.webp",
    "original": "https://api.kairosarchive.net/images/P001754.3faaa315d7d2.original.png"
   },
-  "image_status": "ok"
+  "image_status": "ok",
+  "printings": [
+   {
+    "printing_id": "P001754",
+    "slug": "004-dame_britomart-b-s",
+    "set_code": "004",
+    "set_name": "Arthurian Legends",
+    "released_at": "2024-08-16",
+    "product": "Booster",
+    "finish": "Standard",
+    "printed_as_current": true,
+    "retired_at": null
+   },
+   {
+    "printing_id": "P001755",
+    "slug": "004-dame_britomart-b-f",
+    "set_code": "004",
+    "set_name": "Arthurian Legends",
+    "released_at": "2024-08-16",
+    "product": "Booster",
+    "finish": "Foil",
+    "printed_as_current": true,
+    "retired_at": null
+   }
+  ],
+  "name_history": [
+   {
+    "name": "Dame Britomart",
+    "valid_from": "2026-08-19",
+    "valid_to": null
+   }
+  ],
+  "card_history": [
+   {
+    "valid_from": "2026-08-19",
+    "valid_to": null,
+    "source": "api",
+    "type": "Minion",
+    "category": "Spell",
+    "rarity": "Unique",
+    "slot": "Elite",
+    "subtypes": [
+     "Mortal"
+    ],
+    "elements": [
+     "Air",
+     "Earth",
+     "Water"
+    ],
+    "keywords": [
+     "Lance"
+    ],
+    "umbrellas": [
+     "Knight"
+    ],
+    "cost": 5,
+    "attack": 3,
+    "defense": 5,
+    "power": 4,
+    "life": null,
+    "thr_air": 1,
+    "thr_earth": 1,
+    "thr_fire": 0,
+    "thr_water": 2,
+    "rules_text": "Lance\nIf Dame Britomart would successfully attack an enemy site, she may summon a Mortal from your cemetery to her location instead.",
+    "back": null
+   }
+  ]
  },
  "C000927": {
   "codex_id": "C000927",
@@ -362,7 +738,7 @@ export const cards: Record<string, unknown> = {
   "thr_water": 1,
   "rules_text": "Stealth\nLoses Stealth if it moves.",
   "back": null,
-  "errata": false,
+  "errata": true,
   "set_codes": [
    "006"
   ],
@@ -379,7 +755,105 @@ export const cards: Record<string, unknown> = {
    "large": "https://api.kairosarchive.net/images/P002719.88fae93d94ba.large.webp",
    "original": "https://api.kairosarchive.net/images/P002719.88fae93d94ba.original.png"
   },
-  "image_status": "ok"
+  "image_status": "ok",
+  "printings": [
+   {
+    "printing_id": "P002719",
+    "slug": "006-moss_troll-b-s",
+    "set_code": "006",
+    "set_name": "Gothic",
+    "released_at": "2025-12-05",
+    "product": "Booster",
+    "finish": "Standard",
+    "printed_as_current": true,
+    "retired_at": null
+   },
+   {
+    "printing_id": "P002720",
+    "slug": "006-moss_troll-b-f",
+    "set_code": "006",
+    "set_name": "Gothic",
+    "released_at": "2025-12-05",
+    "product": "Booster",
+    "finish": "Foil",
+    "printed_as_current": true,
+    "retired_at": null
+   }
+  ],
+  "name_history": [
+   {
+    "name": "Moss Troll of the Fen",
+    "valid_from": "2025-12-05",
+    "valid_to": "2026-01-10"
+   },
+   {
+    "name": "Moss Troll",
+    "valid_from": "2026-01-10",
+    "valid_to": null
+   }
+  ],
+  "card_history": [
+   {
+    "valid_from": "2025-12-05",
+    "valid_to": "2026-09-15",
+    "source": "card",
+    "type": "Minion",
+    "category": "Spell",
+    "rarity": "Ordinary",
+    "slot": "Ordinary",
+    "subtypes": [
+     "Giant"
+    ],
+    "elements": [
+     "Water"
+    ],
+    "keywords": [
+     "Stealth"
+    ],
+    "umbrellas": [],
+    "cost": 4,
+    "attack": 3,
+    "defense": 3,
+    "power": 3,
+    "life": null,
+    "thr_air": 0,
+    "thr_earth": 0,
+    "thr_fire": 0,
+    "thr_water": 1,
+    "rules_text": "Stealth\nLoses Stealth if it moves or attacks.",
+    "back": null
+   },
+   {
+    "valid_from": "2026-09-15",
+    "valid_to": null,
+    "source": "api",
+    "type": "Minion",
+    "category": "Spell",
+    "rarity": "Ordinary",
+    "slot": "Ordinary",
+    "subtypes": [
+     "Giant"
+    ],
+    "elements": [
+     "Water"
+    ],
+    "keywords": [
+     "Stealth"
+    ],
+    "umbrellas": [],
+    "cost": 3,
+    "attack": 3,
+    "defense": 3,
+    "power": 3,
+    "life": null,
+    "thr_air": 0,
+    "thr_earth": 0,
+    "thr_fire": 0,
+    "thr_water": 1,
+    "rules_text": "Stealth\nLoses Stealth if it moves.",
+    "back": null
+   }
+  ]
  },
  "C000459": {
   "codex_id": "C000459",
@@ -403,7 +877,7 @@ export const cards: Record<string, unknown> = {
   "thr_earth": 0,
   "thr_fire": 0,
   "thr_water": 0,
-  "rules_text": "Tap \u2192 Play or draw a site. If this is your first turn, summon Tawny here.\nTap \u2192 Summon Bruin here. Flip this card.",
+  "rules_text": "Tap → Play or draw a site. If this is your first turn, summon Tawny here.\nTap → Summon Bruin here. Flip this card.",
   "back": {
    "type": "Avatar",
    "category": "Avatar",
@@ -424,7 +898,7 @@ export const cards: Record<string, unknown> = {
    "thr_earth": 0,
    "thr_fire": 0,
    "thr_water": 0,
-   "rules_text": "Tap \u2192 Play or draw a site.\nNearby allied sites have \"Whenever an enemy enters here, it takes 1 damage.\""
+   "rules_text": "Tap → Play or draw a site.\nNearby allied sites have \"Whenever an enemy enters here, it takes 1 damage.\""
   },
   "errata": true,
   "set_codes": [
@@ -445,7 +919,98 @@ export const cards: Record<string, unknown> = {
    "large": "https://api.kairosarchive.net/images/P001762.0057ae85dc7d.large.webp",
    "original": "https://api.kairosarchive.net/images/P001762.0057ae85dc7d.original.png"
   },
-  "image_status": "lowres"
+  "image_status": "lowres",
+  "printings": [
+   {
+    "printing_id": "P001762",
+    "slug": "004-druid-bt-s",
+    "set_code": "004",
+    "set_name": "Arthurian Legends",
+    "released_at": "2024-08-16",
+    "product": "BoxTopper",
+    "finish": "Standard",
+    "printed_as_current": false,
+    "retired_at": null
+   },
+   {
+    "printing_id": "P001763",
+    "slug": "999-druid-d-f",
+    "set_code": "999",
+    "set_name": "Promo",
+    "released_at": null,
+    "product": "Dust",
+    "finish": "Foil",
+    "printed_as_current": false,
+    "retired_at": null
+   },
+   {
+    "printing_id": "P001764",
+    "slug": "999-druid-op-rf",
+    "set_code": "999",
+    "set_name": "Promo",
+    "released_at": null,
+    "product": "OrganizedPlay",
+    "finish": "Rainbow",
+    "printed_as_current": true,
+    "retired_at": null
+   }
+  ],
+  "name_history": [
+   {
+    "name": "Druid",
+    "valid_from": "2026-08-19",
+    "valid_to": null
+   }
+  ],
+  "card_history": [
+   {
+    "valid_from": "2026-08-19",
+    "valid_to": null,
+    "source": "api",
+    "type": "Avatar",
+    "category": "Avatar",
+    "rarity": null,
+    "slot": "Unique",
+    "subtypes": [],
+    "elements": [
+     "None"
+    ],
+    "keywords": [],
+    "umbrellas": [],
+    "cost": null,
+    "attack": 1,
+    "defense": 1,
+    "power": 1,
+    "life": 20,
+    "thr_air": 0,
+    "thr_earth": 0,
+    "thr_fire": 0,
+    "thr_water": 0,
+    "rules_text": "Tap → Play or draw a site. If this is your first turn, summon Tawny here.\nTap → Summon Bruin here. Flip this card.",
+    "back": {
+     "type": "Avatar",
+     "category": "Avatar",
+     "rarity": null,
+     "slot": "Ordinary",
+     "subtypes": [],
+     "elements": [
+      "None"
+     ],
+     "keywords": [],
+     "umbrellas": [],
+     "cost": null,
+     "attack": 1,
+     "defense": 1,
+     "power": 1,
+     "life": 20,
+     "thr_air": 0,
+     "thr_earth": 0,
+     "thr_fire": 0,
+     "thr_water": 0,
+     "rules_text": "Tap → Play or draw a site.\nNearby allied sites have \"Whenever an enemy enters here, it takes 1 damage.\""
+    }
+   }
+  ]
  },
  "C000393": {
   "codex_id": "C000393",
@@ -469,7 +1034,7 @@ export const cards: Record<string, unknown> = {
   "thr_earth": 0,
   "thr_fire": 0,
   "thr_water": 0,
-  "rules_text": "Tap \u2192 Play or draw a site.\nOnce on your turn, if you occupy an Air site, you may fly a unit atop it to a nearby site.",
+  "rules_text": "Tap → Play or draw a site.\nOnce on your turn, if you occupy an Air site, you may fly a unit atop it to a nearby site.",
   "back": null,
   "errata": false,
   "set_codes": [
@@ -490,7 +1055,77 @@ export const cards: Record<string, unknown> = {
    "large": "https://api.kairosarchive.net/images/P001591.501f843e1d8b.large.webp",
    "original": "https://api.kairosarchive.net/images/P001591.501f843e1d8b.original.png"
   },
-  "image_status": "lowres"
+  "image_status": "lowres",
+  "printings": [
+   {
+    "printing_id": "P001590",
+    "slug": "001-avatar_of_air-pd-s",
+    "set_code": "001",
+    "set_name": "Alpha",
+    "released_at": "2023-06-22",
+    "product": "PreconstructedDeck",
+    "finish": "Standard",
+    "printed_as_current": true,
+    "retired_at": null
+   },
+   {
+    "printing_id": "P001591",
+    "slug": "001-avatar_of_air-b-f",
+    "set_code": "001",
+    "set_name": "Alpha",
+    "released_at": "2023-06-22",
+    "product": "Booster",
+    "finish": "Foil",
+    "printed_as_current": true,
+    "retired_at": null
+   },
+   {
+    "printing_id": "P001592",
+    "slug": "999-avatar_of_air-op-rf",
+    "set_code": "999",
+    "set_name": "Promo",
+    "released_at": null,
+    "product": "OrganizedPlay",
+    "finish": "Rainbow",
+    "printed_as_current": true,
+    "retired_at": null
+   }
+  ],
+  "name_history": [
+   {
+    "name": "Avatar of Air",
+    "valid_from": "2026-08-19",
+    "valid_to": null
+   }
+  ],
+  "card_history": [
+   {
+    "valid_from": "2026-08-19",
+    "valid_to": null,
+    "source": "api",
+    "type": "Avatar",
+    "category": "Avatar",
+    "rarity": null,
+    "slot": "Unique",
+    "subtypes": [],
+    "elements": [
+     "None"
+    ],
+    "keywords": [],
+    "umbrellas": [],
+    "cost": null,
+    "attack": 1,
+    "defense": 1,
+    "power": 1,
+    "life": 20,
+    "thr_air": 0,
+    "thr_earth": 0,
+    "thr_fire": 0,
+    "thr_water": 0,
+    "rules_text": "Tap → Play or draw a site.\nOnce on your turn, if you occupy an Air site, you may fly a unit atop it to a nearby site.",
+    "back": null
+   }
+  ]
  }
 };
 export const printings: Record<string, unknown> = {
@@ -616,7 +1251,7 @@ export const printings: Record<string, unknown> = {
   "product": "PreconstructedDeck",
   "finish": "Standard",
   "slug": "001-avatar_of_air-pd-s",
-  "artist": "S\u00e9verine Pineaux",
+  "artist": "Séverine Pineaux",
   "artist_slug": "severine_pineaux",
   "flavour_text": "",
   "typeline": "Your Avatar of soaring ambition",
@@ -644,7 +1279,7 @@ export const printings: Record<string, unknown> = {
   "product": "Booster",
   "finish": "Foil",
   "slug": "001-avatar_of_air-b-f",
-  "artist": "S\u00e9verine Pineaux",
+  "artist": "Séverine Pineaux",
   "artist_slug": "severine_pineaux",
   "flavour_text": "",
   "typeline": "Your Avatar of soaring ambition",
@@ -672,7 +1307,7 @@ export const printings: Record<string, unknown> = {
   "product": "OrganizedPlay",
   "finish": "Rainbow",
   "slug": "999-avatar_of_air-op-rf",
-  "artist": "S\u00e9verine Pineaux",
+  "artist": "Séverine Pineaux",
   "artist_slug": "severine_pineaux",
   "flavour_text": "",
   "typeline": "Your Avatar soared as high as its ambitions",

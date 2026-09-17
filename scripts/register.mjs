@@ -1,5 +1,6 @@
 #!/usr/bin/env node
-/** Push the slash commands in src/commands.ts to Discord, and upload the
+/** Push the commands in src/commands.ts (slash commands and the message
+ * menu entry) to Discord, and upload the
  * four threshold symbols as application emojis. Run it after every change
  * to commands.ts; Discord serves its registered copy, not the repo.
  *
@@ -34,7 +35,7 @@ async function call(method, path, body) {
 // file disappears from Discord too.
 const target = guild ? `/applications/${appId}/guilds/${guild}/commands` : `/applications/${appId}/commands`;
 const registered = await call("PUT", target, commands);
-console.log(`${registered.length} command(s) registered ${guild ? `in guild ${guild}` : "globally"}: ${registered.map((c) => `/${c.name}`).join(" ")}`);
+console.log(`${registered.length} command(s) registered ${guild ? `in guild ${guild}` : "globally"}: ${registered.map((c) => (c.type === 3 ? `“${c.name}” (message menu)` : `/${c.name}`)).join(" ")}`);
 
 // Emojis: create the ones missing, leave the rest alone.
 const existing = (await call("GET", `/applications/${appId}/emojis`)).items.map((e) => e.name);
