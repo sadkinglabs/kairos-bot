@@ -292,8 +292,7 @@ const SOURCE: Record<string, [string, string]> = { api: ["🌐", "as the officia
 
 /** /history: the card's art, then one field per face the card has had,
  * oldest first, each change against the one before, and any earlier
- * names. Dates are when a face took effect in the registry; the
- * publisher's own change may be earlier. */
+ * names. */
 export function historyEmbed(card: Card, emojis: EmojiMap, siteBase: string): Reply {
   const rows = card.card_history.toSorted((a, b) => a.valid_from.localeCompare(b.valid_from));
   const fields: EmbedField[] = rows.map((row, i) => {
@@ -313,7 +312,7 @@ export function historyEmbed(card: Card, emojis: EmojiMap, siteBase: string): Re
     color: colour(card.elements),
     description: `${typeLine(card)} · ${card.codex_id}\n${summary}`,
     fields: quiet ? [] : fields.slice(0, 25),
-    footer: { text: `${CREDIT} · dates are when the registry recorded each face` },
+    footer: { text: CREDIT },
   };
   if (card.image_urls) embed.thumbnail = { url: card.image_urls.small };
   return { embeds: [embed], components: [linkRow([{ label: "Card", url: card.kairos_url }, { label: "All changes", url: `${siteBase}/changes` }, { label: "JSON", url: card.api_url }])] };
