@@ -21,7 +21,7 @@ const command = (name: string, options: { name: string; value: string; focused?:
   ({ type, data: { name, options: options.map((o) => ({ type: 3, ...o })) } });
 const onMessage = (content: string) => ({ type: 2, data: { name: "Find cards", type: 3, target_id: "m1", resolved: { messages: { m1: { content } } } } });
 const click = (custom_id: string, values?: string[]) => ({ type: 3, data: { custom_id, ...(values ? { values } : {}) } });
-type Body = { type: number; data: { content?: string; flags?: number; embeds?: { title: string; description?: string; thumbnail?: { url: string } }[]; components?: { components: { label?: string; custom_id?: string; options?: { value: string; default?: boolean }[] }[] }[] } };
+type Body = { type: number; data: { content?: string; flags?: number; embeds?: { title: string; description?: string; thumbnail?: { url: string }; fields?: { name: string; value: string }[] }[]; components?: { components: { label?: string; custom_id?: string; options?: { value: string; default?: boolean }[] }[] }[] } };
 const read = async (body: unknown) => (await (await post(body)).json()) as Body;
 
 describe("handle", () => {
@@ -70,7 +70,7 @@ describe("handle", () => {
   it("/history and /set answer by name or code, with set suggestions", async () => {
     const h = await read(command("history", [{ name: "name", value: "moss troll" }]));
     expect(h.data.embeds![0]!.title).toBe("History of Moss Troll");
-    expect(h.data.embeds![0]!.description).toContain("Mana: 4 → 3");
+    expect(h.data.embeds![0]!.fields![1]!.value).toContain("Mana 4 → 3");
     const miss = await read(command("history", [{ name: "name", value: "xyzzy" }]));
     expect(miss.data.flags).toBe(64);
     const byName = await read(command("set", [{ name: "set", value: "goth" }]));

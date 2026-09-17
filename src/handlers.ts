@@ -45,7 +45,7 @@ export async function card(interaction: Interaction, s: Services): Promise<Respo
 export async function history(interaction: Interaction, s: Services): Promise<Response> {
   const found = await namedCard(optionValue(interaction, "name") ?? "", s);
   if ("miss" in found) return whisper(found.miss);
-  return message(historyEmbed(found, s.siteBase));
+  return message(historyEmbed(found, s.emojis, s.siteBase));
 }
 
 /** /set: by code from a suggestion, or by whatever was typed. */

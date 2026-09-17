@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CREDIT, MAX_DESCRIPTION, cardEmbed, colour, faceDiff, foundEmbeds, historyEmbed, pageRows, printingEmbed, searchEmbed, setEmbed, smallEmbed, statsLine, thresholdText, typeLine } from "../src/embed";
+import { CREDIT, MAX_DESCRIPTION, cardEmbed, colour, faceDiff, foundEmbeds, historyEmbed, pageRows, printingEmbed, searchEmbed, setEmbed, smallEmbed, statsLine, thresholdText, typeLine, wordDiff } from "../src/embed";
 import type { ActionButton, LinkButton, SelectMenu } from "../src/discord";
 import type { Card, Printing, SetObject } from "../src/registry";
 import { cards, printings, setObjects, sets } from "./fixtures";
@@ -108,22 +108,34 @@ describe("foundEmbeds", () => {
 });
 
 describe("historyEmbed", () => {
-  it("lists each face against the one before, and earlier names", () => {
-    const { embeds, components } = historyEmbed(troll, "https://site.test");
-    const d = embeds[0]!.description!;
-    expect(embeds[0]!.title).toBe("History of Moss Troll");
-    expect(d).toContain("2 faces on record · this card has errata.\n\n**2025-12-05** · first face on record, as printed on the card · until 2026-09-15\n\n");
-    expect(d).toContain("**2026-09-15** · as the official API served it · current\nMana: 4 → 3\nRules text, before:\n> Stealth\n> Loses Stealth if it moves or attacks.\nAfter:\n> Stealth\n> Loses Stealth if it moves.");
-    expect(d).toContain("**2025-12-05** · named “Moss Troll of the Fen” until 2026-01-10");
+  it("gives each face a field, diffed against the one before, plus earlier names and the art", () => {
+    const { embeds, components } = historyEmbed(troll, emojis, "https://site.test");
+    const e = embeds[0]!;
+    expect(e.title).toBe("History of Moss Troll");
+    expect(e.description).toBe("Minion — Ordinary Giant · C000927\n⚠️ 2 faces on record · this card has errata.");
+    expect(e.thumbnail?.url).toBe(troll.image_urls!.small);
+    expect(e.fields!.map((f) => f.name)).toEqual(["2025-12-05 → 2026-09-15", "2026-09-15 → now", "🏷️ 2025-12-05 → 2026-01-10"]);
+    expect(e.fields![0]!.value).toBe("✍️ First face on record, as printed on the card.");
+    expect(e.fields![1]!.value).toBe("🌐 As the official API served it.\nMana 4 → 3\n📝 Stealth\nLoses Stealth if it ~~moves or attacks.~~ **moves.**");
+    expect(e.fields![2]!.value).toBe("Named “Moss Troll of the Fen”.");
     expect(labels(components[0]!)).toEqual(["Card", "All changes", "JSON"]);
   });
-  it("says so when nothing changed", () => {
-    expect(historyEmbed(bears, "https://site.test").embeds[0]!.description).toBe("No changes recorded. One face on record since 2026-08-19.");
+  it("says so when nothing changed, with no fields", () => {
+    const e = historyEmbed(bears, none, "https://site.test").embeds[0]!;
+    expect(e.description).toBe("Minion — Ordinary Beast · C000230\nNo changes recorded. One face on record since 2026-08-19.");
+    expect(e.fields).toEqual([]);
   });
-  it("diffs only what differs", () => {
+  it("diffs only what differs, thresholds with the symbols", () => {
     const [a, b] = troll.card_history;
     expect(faceDiff(a!, a!)).toEqual([]);
-    expect(faceDiff(a!, { ...b!, subtypes: ["Giant", "Troll"], rules_text: a!.rules_text })).toEqual(["Subtypes: Giant → Giant, Troll", "Mana: 4 → 3"]);
+    expect(faceDiff(a!, { ...b!, subtypes: ["Giant", "Troll"], thr_water: 2, rules_text: a!.rules_text }, emojis)).toEqual(["Subtypes Giant → Giant, Troll", "Mana 4 → 3", "Threshold <:thr_water:4> → <:thr_water:4><:thr_water:4>"]);
+  });
+  it("marks removed words struck and added words bold, old before new, per line", () => {
+    expect(wordDiff("Deals 2 damage.", "Deals 3 damage to each unit.")).toBe("Deals ~~2 damage.~~ **3 damage to each unit.**");
+    expect(wordDiff("Airborne\nDamage dealt by Blood Ravens' strikes heals you.", "Airborne\nBlood Ravens' strike damage against units heals you."))
+      .toBe("Airborne\n~~Damage dealt by~~ Blood Ravens' ~~strikes~~ **strike damage against units** heals you.");
+    expect(wordDiff("same text", "same text")).toBe("same text");
+    expect(wordDiff("", "Genesis → Draw a card.")).toBe("**Genesis → Draw a card.**");
   });
 });
 

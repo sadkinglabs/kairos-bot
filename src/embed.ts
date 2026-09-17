@@ -3,7 +3,7 @@
  * the rules text), with the thresholds drawn as the element symbols when
  * the bot has them, the art below, and the publisher credited. Pure. */
 import type { Card, Face, HistoryRow, Printing, PrintingSummary, SetEntry, SetObject } from "./registry";
-import { CUSTOM_ID_MAX, buttonRow, linkRow, selectRow, type ActionRow, type Embed } from "./discord";
+import { CUSTOM_ID_MAX, buttonRow, linkRow, selectRow, type ActionRow, type Embed, type EmbedField } from "./discord";
 import type { EmojiMap } from "./emoji";
 import type { QueryList } from "./query";
 
@@ -216,7 +216,6 @@ export function foundEmbeds(found: { card: Card; shown: Printing | null }[], mis
 const HISTORY_FIELDS: [keyof Face, string][] = [
   ["type", "Type"], ["rarity", "Rarity"], ["subtypes", "Subtypes"], ["elements", "Elements"],
   ["cost", "Mana"], ["attack", "Attack"], ["defense", "Defense"], ["power", "Power"], ["life", "Life"],
-  ["thr_air", "Air threshold"], ["thr_earth", "Earth threshold"], ["thr_fire", "Fire threshold"], ["thr_water", "Water threshold"],
 ];
 
 function show(value: unknown): string {
@@ -225,47 +224,103 @@ function show(value: unknown): string {
   return String(value);
 }
 
-/** What changed between two faces, one line per field, rules text last. */
-export function faceDiff(before: HistoryRow, after: HistoryRow): string[] {
+/** Discord's cap on one embed field's value. */
+const FIELD_MAX = 1024;
+
+/** What changed between two faces, one line per field, the rules text
+ * last as one merged line: removed words struck through, added words in
+ * bold. Thresholds are drawn with the element symbols when given. */
+export function faceDiff(before: HistoryRow, after: HistoryRow, emojis: EmojiMap = new Map()): string[] {
   const lines: string[] = [];
   for (const [key, label] of HISTORY_FIELDS) {
-    if (show(before[key]) !== show(after[key])) lines.push(`${label}: ${show(before[key])} → ${show(after[key])}`);
+    if (show(before[key]) !== show(after[key])) lines.push(`${label} ${show(before[key])} → ${show(after[key])}`);
   }
-  if (show(before.keywords) !== show(after.keywords)) lines.push(`Keywords: ${show(before.keywords)} → ${show(after.keywords)}`);
-  if (before.rules_text.trim() !== after.rules_text.trim()) lines.push(`Rules text, before:\n> ${before.rules_text.trim().replace(/\n/g, "\n> ")}\nAfter:\n> ${after.rules_text.trim().replace(/\n/g, "\n> ")}`);
+  const thrBefore = thresholdText(before, emojis);
+  const thrAfter = thresholdText(after, emojis);
+  if (thrBefore !== thrAfter) lines.push(`Threshold ${thrBefore || "none"} → ${thrAfter || "none"}`);
+  if (show(before.keywords) !== show(after.keywords)) lines.push(`Keywords ${show(before.keywords)} → ${show(after.keywords)}`);
+  if (before.rules_text.trim() !== after.rules_text.trim()) lines.push(`📝 ${wordDiff(before.rules_text.trim(), after.rules_text.trim())}`);
   return lines;
 }
 
-const SOURCE = { api: "as the official API served it", card: "as printed on the card" } as const;
-
-/** /history: every face the card has had, oldest first, each change
- * against the one before, and any earlier names. Dates are when a face
- * took effect in the registry; the publisher's own change may be earlier. */
-export function historyEmbed(card: Card, siteBase: string): Reply {
-  const rows = card.card_history.toSorted((a, b) => a.valid_from.localeCompare(b.valid_from));
-  const sections: string[] = [];
-  for (const [i, row] of rows.entries()) {
-    const until = row.valid_to ? `until ${row.valid_to}` : "current";
-    if (i === 0) {
-      sections.push(`**${row.valid_from}** · first face on record, ${SOURCE[row.source] ?? row.source} · ${until}`);
-      continue;
+/** `before` and `after` as one text: the words only `before` has are
+ * struck through, the words only `after` has are bold, everything
+ * shared stays plain. Line breaks are kept, and a run of marks never
+ * crosses one, since Discord's markup does not. Longest common
+ * subsequence over words; rules texts are a few dozen words, so the
+ * table is small. */
+export function wordDiff(before: string, after: string): string {
+  const a = tokens(before);
+  const b = tokens(after);
+  const lcs: number[][] = Array.from({ length: a.length + 1 }, () => Array.from({ length: b.length + 1 }, () => 0));
+  for (let i = a.length - 1; i >= 0; i--) {
+    for (let j = b.length - 1; j >= 0; j--) {
+      lcs[i]![j] = a[i] === b[j] ? lcs[i + 1]![j + 1]! + 1 : Math.max(lcs[i + 1]![j]!, lcs[i]![j + 1]!);
     }
-    const diff = faceDiff(rows[i - 1]!, row);
-    sections.push(`**${row.valid_from}** · ${SOURCE[row.source] ?? row.source} · ${until}\n${diff.length ? diff.join("\n") : "No gameplay change."}`);
   }
-  const names = card.name_history.filter((n) => n.valid_to).map((n) => `**${n.valid_from}** · named “${n.name}” until ${n.valid_to}`);
-  const quiet = rows.length < 2 && !names.length;
-  const head = quiet
+  // Walk the table: shared words plain, words only `before` has struck
+  // through (first, so a change reads old then new), words only `after`
+  // has in bold.
+  const pieces: { text: string; mark: "" | "~~" | "**" }[] = [];
+  let i = 0;
+  let j = 0;
+  while (i < a.length || j < b.length) {
+    if (i < a.length && j < b.length && a[i] === b[j]) { pieces.push({ text: a[i]!, mark: "" }); i++; j++; }
+    else if (i < a.length && (j >= b.length || lcs[i + 1]![j]! >= lcs[i]![j + 1]!)) { pieces.push({ text: a[i]!, mark: "~~" }); i++; }
+    else { pieces.push({ text: b[j]!, mark: "**" }); j++; }
+  }
+  // Wrap each run of one mark once, line by line.
+  const lines: string[] = [];
+  let runs: string[] = [];
+  let run: { mark: string; words: string[] } | null = null;
+  const closeRun = () => { if (run) runs.push(`${run.mark}${run.words.join(" ")}${run.mark}`); run = null; };
+  for (const piece of pieces) {
+    if (piece.text === "\n") { closeRun(); lines.push(runs.join(" ")); runs = []; continue; }
+    if (!run || run.mark !== piece.mark) { closeRun(); run = { mark: piece.mark, words: [] }; }
+    run.words.push(piece.text);
+  }
+  closeRun();
+  lines.push(runs.join(" "));
+  return lines.join("\n");
+}
+
+function tokens(text: string): string[] {
+  return text.split(/(\n)| +/).filter((t): t is string => Boolean(t));
+}
+
+const SOURCE: Record<string, [string, string]> = { api: ["🌐", "as the official API served it"], card: ["✍️", "as printed on the card"] };
+
+/** /history: the card's art, then one field per face the card has had,
+ * oldest first, each change against the one before, and any earlier
+ * names. Dates are when a face took effect in the registry; the
+ * publisher's own change may be earlier. */
+export function historyEmbed(card: Card, emojis: EmojiMap, siteBase: string): Reply {
+  const rows = card.card_history.toSorted((a, b) => a.valid_from.localeCompare(b.valid_from));
+  const fields: EmbedField[] = rows.map((row, i) => {
+    const [icon, source] = SOURCE[row.source] ?? ["", row.source];
+    const value = i === 0 ? [`${icon} First face on record, ${source}.`] : [`${icon} ${source[0]!.toUpperCase()}${source.slice(1)}.`, ...faceDiff(rows[i - 1]!, row, emojis)];
+    if (i > 0 && value.length === 1) value.push("No gameplay change.");
+    return { name: `${row.valid_from} → ${row.valid_to ?? "now"}`, value: clipTo(value.join("\n"), FIELD_MAX) };
+  });
+  for (const n of card.name_history.filter((x) => x.valid_to)) fields.push({ name: `🏷️ ${n.valid_from} → ${n.valid_to}`, value: `Named “${n.name}”.` });
+  const quiet = rows.length < 2 && fields.length < 2;
+  const summary = quiet
     ? `No changes recorded. One face on record since ${rows[0]?.valid_from ?? "the first release"}.`
-    : `${rows.length} ${rows.length === 1 ? "face" : "faces"} on record${card.errata ? " · this card has errata" : ""}.`;
+    : `${card.errata ? "⚠️ " : ""}${rows.length} ${rows.length === 1 ? "face" : "faces"} on record${card.errata ? " · this card has errata" : ""}.`;
   const embed: Embed = {
     title: `History of ${card.name}`,
     url: `${card.kairos_url}#history`,
     color: colour(card.elements),
-    description: clip(quiet ? head : [head, ...sections, ...names].join("\n\n")),
+    description: `${typeLine(card)} · ${card.codex_id}\n${summary}`,
+    fields: quiet ? [] : fields.slice(0, 25),
     footer: { text: `${CREDIT} · dates are when the registry recorded each face` },
   };
+  if (card.image_urls) embed.thumbnail = { url: card.image_urls.small };
   return { embeds: [embed], components: [linkRow([{ label: "Card", url: card.kairos_url }, { label: "All changes", url: `${siteBase}/changes` }, { label: "JSON", url: card.api_url }])] };
+}
+
+function clipTo(text: string, max: number): string {
+  return text.length <= max ? text : `${text.slice(0, max - 1)}…`;
 }
 
 /** /set: what a set is, in numbers, with a few of its cards and a way

@@ -60,8 +60,11 @@ export interface Embed {
   color?: number;
   image?: { url: string };
   thumbnail?: { url: string };
+  /** Up to 25; a name up to 256, a value up to 1,024. */
+  fields?: EmbedField[];
   footer?: { text: string };
 }
+export interface EmbedField { name: string; value: string; inline?: boolean }
 
 /** A row of link buttons under a message: style 5 buttons carry a URL
  * and never call back, so they need no handler. */
