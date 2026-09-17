@@ -37,6 +37,13 @@ export interface InteractionOption {
 export interface Interaction {
   type: number;
   id?: string;
+  /** Where it came from: the server, when in one; the install that
+   * authorised it ("0" a server install, "1" a user install); Discord's
+   * context number (0 server, 1 bot DM, 2 private channel); the caller's locale. */
+  guild_id?: string;
+  authorizing_integration_owners?: Record<string, string>;
+  context?: number;
+  locale?: string;
   data?: {
     /** Slash commands and menu entries carry a name; components carry a custom_id. */
     name?: string;

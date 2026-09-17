@@ -28,3 +28,9 @@ enabled = true
 [[services]]
 binding = "QUERY"
 service = "kairos-query"
+
+# Usage counts: one data point per interaction (src/stats.ts), read by
+# the archive's stats dashboard. The dataset is created on first write.
+[[analytics_engine_datasets]]
+binding = "STATS"
+dataset = "kairos_bot"

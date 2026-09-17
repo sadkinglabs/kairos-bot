@@ -48,8 +48,9 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           DISCORD_PUBLIC_KEY: ${{ secrets.DISCORD_PUBLIC_KEY }}
           DISCORD_BOT_TOKEN: ${{ secrets.DISCORD_BOT_TOKEN }}
+          STATS_SALT: ${{ secrets.STATS_SALT }}
         run: |
-          for name in DISCORD_PUBLIC_KEY DISCORD_BOT_TOKEN; do
+          for name in DISCORD_PUBLIC_KEY DISCORD_BOT_TOKEN STATS_SALT; do
             value="${!name}"
             if [ -z "$value" ]; then echo "$name is not set in GitHub secrets; left as is."; continue; fi
             printf '%s' "$value" | npx wrangler secret put "$name"

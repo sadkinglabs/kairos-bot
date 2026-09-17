@@ -5,9 +5,10 @@
  * Discord's three seconds: a card is one cached fetch, so there is no
  * deferred reply to manage.
  *
- * Secrets (wrangler secret put): DISCORD_PUBLIC_KEY, DISCORD_BOT_TOKEN.
- * Vars (wrangler.toml): DISCORD_APPLICATION_ID, REGISTRY_BASE_URL,
- * QUERY_BASE_URL, SITE_BASE_URL.
+ * Secrets (wrangler secret put): DISCORD_PUBLIC_KEY, DISCORD_BOT_TOKEN,
+ * STATS_SALT. Vars (wrangler.toml): DISCORD_APPLICATION_ID,
+ * REGISTRY_BASE_URL, QUERY_BASE_URL, SITE_BASE_URL. Every interaction
+ * leaves one data point in Analytics Engine (stats.ts) after the reply.
  *
  * index.ts is the entry module and exports only the default handler:
  * the runtime rejects any other export from an entry module, which is
@@ -16,6 +17,7 @@ import { InteractionType, ResponseType, json, whisper, type Interaction } from "
 import { applicationEmojis } from "./emoji";
 import { autocomplete, byId, card, component, findCards, history, random, search, set, setAutocomplete, syntax, type Services } from "./handlers";
 import { Registry, type Fetch } from "./registry";
+import { record } from "./stats";
 import { verifySignature } from "./verify";
 
 export interface Env {
@@ -28,6 +30,10 @@ export interface Env {
   /** The query API as a service binding, when deployed with one. */
   QUERY?: Fetcher;
   SITE_BASE_URL?: string;
+  /** Usage counts (wrangler.toml [[analytics_engine_datasets]]); absent in tests that do not set one. */
+  STATS?: AnalyticsEngineDataset;
+  /** Keys the server-id hash in the counts; without it no server hash is written. */
+  STATS_SALT?: string;
 }
 
 export const DEFAULT_REGISTRY = "https://api.kairosarchive.net";
@@ -42,7 +48,8 @@ function registryFor(env: Env): Registry {
   return registry;
 }
 
-export async function handle(request: Request, env: Env, deps: { registry: Registry; random?: () => number; fetchImpl?: Fetch } = { registry: registryFor(env) }): Promise<Response> {
+export async function handle(request: Request, env: Env, deps: { registry: Registry; random?: () => number; fetchImpl?: Fetch } = { registry: registryFor(env) }, ctx?: ExecutionContext): Promise<Response> {
+  const started = Date.now();
   if (request.method === "GET") {
     return new Response(`Kairos Archive's Discord bot. Cards for Sorcery: Contested Realm, from ${env.SITE_BASE_URL ?? DEFAULT_SITE}.\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
   }
@@ -50,14 +57,24 @@ export async function handle(request: Request, env: Env, deps: { registry: Regis
 
   const body = await request.text();
   const ok = await verifySignature(env.DISCORD_PUBLIC_KEY, request.headers.get("x-signature-ed25519"), request.headers.get("x-signature-timestamp"), body);
-  if (!ok) return new Response("invalid request signature", { status: 401 });
-
-  let interaction: Interaction;
-  try {
-    interaction = JSON.parse(body) as Interaction;
-  } catch {
-    return new Response("bad json", { status: 400 });
+  let interaction: Interaction | null = null;
+  let res: Response | null = null;
+  if (!ok) res = new Response("invalid request signature", { status: 401 });
+  else {
+    try {
+      interaction = JSON.parse(body) as Interaction;
+    } catch {
+      res = new Response("bad json", { status: 400 });
+    }
   }
+  if (!res) res = await answer(interaction!, env, deps);
+  // The count is written after the reply leaves; in tests, before it returns.
+  const pending = record(env.STATS, interaction, res.clone(), started, env.STATS_SALT);
+  if (ctx) ctx.waitUntil(pending); else await pending;
+  return res;
+}
+
+async function answer(interaction: Interaction, env: Env, deps: { registry: Registry; random?: () => number; fetchImpl?: Fetch }): Promise<Response> {
   if (interaction.type === InteractionType.PING) return json({ type: ResponseType.PONG });
 
   const services: Services = {
