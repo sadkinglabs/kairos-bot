@@ -12,6 +12,11 @@ export const InteractionType = {
 export const ResponseType = {
   PONG: 1,
   CHANNEL_MESSAGE_WITH_SOURCE: 4,
+  /** "Working on it": Discord shows a thinking state until the bot edits
+   * the message through the interaction's webhook (worker.ts followUp). */
+  DEFERRED_CHANNEL_MESSAGE_WITH_SOURCE: 5,
+  /** The same for a component click: the message stays as it is until edited. */
+  DEFERRED_UPDATE_MESSAGE: 6,
   /** Replace the message the component sits on, in place. */
   UPDATE_MESSAGE: 7,
   APPLICATION_COMMAND_AUTOCOMPLETE_RESULT: 8,
@@ -37,6 +42,8 @@ export interface InteractionOption {
 export interface Interaction {
   type: number;
   id?: string;
+  /** The token that lets the bot edit its reply after a deferred response. */
+  token?: string;
   /** Where it came from: the server, when in one; the install that
    * authorised it ("0" a server install, "1" a user install); Discord's
    * context number (0 server, 1 bot DM, 2 private channel); the caller's locale. */

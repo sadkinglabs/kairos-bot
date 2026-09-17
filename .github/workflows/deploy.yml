@@ -1,20 +1,27 @@
 name: deploy
 
-# Deploys the Worker from GitHub, so no laptop with wrangler is needed:
-# every push to main, and on demand from the Actions tab. Wrangler reads
-# CLOUDFLARE_API_TOKEN and CLOUDFLARE_ACCOUNT_ID from the environment;
-# the two Discord values are pushed into the Worker's encrypted secret
-# store on each run, so rotating one is a change to the GitHub secret and
-# a re-run. Without a Cloudflare token the job says so and stops, so a
-# push never fails for want of setup.
+# Deploys the Worker from GitHub, so no laptop with wrangler is needed,
+# and only a commit whose checks passed. On main the deploy runs after
+# the ci workflow finishes and only when it succeeded, on that run's
+# exact commit; a manual run deploys the commit it was started on and
+# first looks up the ci result for that same commit, so a red or absent
+# check stops it too. Wrangler reads CLOUDFLARE_API_TOKEN and
+# CLOUDFLARE_ACCOUNT_ID from the environment; the Discord values and the
+# stats salt are pushed into the Worker's encrypted secret store on each
+# run, so rotating one is a change to the GitHub secret and a re-run.
+# Without a Cloudflare token the job says so and stops, so a push never
+# fails for want of setup.
 
 on:
-  workflow_dispatch:
-  push:
+  workflow_run:
+    workflows: [ci]
+    types: [completed]
     branches: [main]
+  workflow_dispatch:
 
 permissions:
   contents: read
+  actions: read
 
 concurrency:
   group: deploy
@@ -22,9 +29,26 @@ concurrency:
 
 jobs:
   deploy:
+    # A ci run that failed or was cancelled never reaches the steps.
+    if: github.event_name == 'workflow_dispatch' || github.event.workflow_run.conclusion == 'success'
     runs-on: ubuntu-latest
+    env:
+      # The commit being deployed: the ci run's head on main, the chosen ref on a manual run.
+      DEPLOY_SHA: ${{ github.event.workflow_run.head_sha || github.sha }}
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          ref: ${{ env.DEPLOY_SHA }}
+      - name: Require a green ci run for this exact commit
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          conclusion=$(gh run list --workflow ci.yml --commit "$DEPLOY_SHA" --status completed --limit 1 --json conclusion --jq '.[0].conclusion // "none"')
+          echo "ci for $DEPLOY_SHA: $conclusion"
+          if [ "$conclusion" != "success" ]; then
+            echo "::error::ci has not passed for $DEPLOY_SHA (result: $conclusion); nothing deployed"
+            exit 1
+          fi
       - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 22

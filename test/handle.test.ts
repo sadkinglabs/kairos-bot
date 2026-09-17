@@ -1,5 +1,6 @@
 /** The Worker end to end: a signed request in, Discord's response body
- * out, with the registry served by the fake fetch. */
+ * out, with the registry and the query API both served by the fake
+ * fetch, so nothing here ever reaches production. */
 import { describe, expect, it } from "vitest";
 import { handle, type Env } from "../src/worker";
 import { Registry } from "../src/registry";
@@ -7,14 +8,18 @@ import { BASE, fakeFetch } from "./fake";
 
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
 const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])) as CryptoKeyPair;
-const env: Env = { DISCORD_PUBLIC_KEY: hex((await crypto.subtle.exportKey("raw", pair.publicKey)) as ArrayBuffer), DISCORD_APPLICATION_ID: "app", REGISTRY_BASE_URL: BASE, SITE_BASE_URL: "https://site.test" };
+const env: Env = { DISCORD_PUBLIC_KEY: hex((await crypto.subtle.exportKey("raw", pair.publicKey)) as ArrayBuffer), DISCORD_APPLICATION_ID: "app", REGISTRY_BASE_URL: BASE, QUERY_BASE_URL: BASE, SITE_BASE_URL: "https://site.test" };
 
-async function post(body: unknown, sign = true): Promise<Response> {
+async function post(body: unknown, sign = true, overrides: Record<string, unknown> = {}): Promise<Response> {
   const text = JSON.stringify(body);
   const ts = "1700000000";
   const sig = sign ? hex(await crypto.subtle.sign("Ed25519", pair.privateKey, new TextEncoder().encode(ts + text))) : "00";
   const req = new Request("https://bot.test/", { method: "POST", body: text, headers: { "x-signature-ed25519": sig, "x-signature-timestamp": ts } });
-  return handle(req, env, { registry: new Registry(BASE, fakeFetch()), random: () => 0.999 });
+  // One fake serves the registry and the query API alike (QUERY_BASE_URL is
+  // BASE too); a path it does not know is a 404, which the query client
+  // reads as "the API is not there".
+  const f = fakeFetch(overrides);
+  return handle(req, env, { registry: new Registry(BASE, f), random: () => 0.999, fetchImpl: f, discordFetch: f });
 }
 
 const command = (name: string, options: { name: string; value: string; focused?: boolean }[] = [], type = 2) =>
@@ -61,10 +66,20 @@ describe("handle", () => {
     const gone = (await (await post(command("id", [{ name: "id", value: "P999999" }]))).json()) as { data: { content: string } };
     expect(gone.data.content).toBe("No printing P999999 in the archive.");
   });
-  it("/random picks from the index and /search links the site", async () => {
+  it("/random picks from the index", async () => {
     const r = (await (await post(command("random"))).json()) as { data: { embeds: { title: string }[] } };
     expect(r.data.embeds[0]!.title).toBe("Avatar of Air");
-    const s = (await (await post(command("search", [{ name: "query", value: "e:fire" }]))).json()) as { data: { embeds: { url: string }[] } };
+  });
+  it("/search shows the query API's matches when it answers", async () => {
+    const list = { object: "list", release: "v3.9.0", q: "e:fire", total: 1, page: 1, page_size: 5, has_more: false, rules_text_total: 0,
+      data: [{ codex_id: "C000429", name: "Black Knight", type: "Minion", rarity: "Exceptional", subtypes: ["Mortal"], elements: ["Fire", "Water"], cost: 5, attack: 5, defense: 3, power: 4, life: null, kairos_url: "https://site.test/cards/C000429", image_urls: null, printing: null }] };
+    const s = (await (await post(command("search", [{ name: "query", value: "e:fire" }]), true, { "cards?q=e%3Afire&page_size=5": list })).json()) as { data: { content: string; embeds: { title: string }[] } };
+    expect(s.data.content).toBe("**1 card** for `e:fire`");
+    expect(s.data.embeds[0]!.title).toBe("Black Knight");
+  });
+  it("/search falls back to a link to the site when the query API is not there", async () => {
+    const s = (await (await post(command("search", [{ name: "query", value: "e:fire" }]))).json()) as { data: { embeds: { title: string; url: string }[] } };
+    expect(s.data.embeds[0]!.title).toBe("Search: e:fire");
     expect(s.data.embeds[0]!.url).toBe("https://site.test/search?q=e%3Afire");
   });
   it("/history and /set answer by name or code, with set suggestions", async () => {
