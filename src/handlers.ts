@@ -1,8 +1,8 @@
 /** One function per slash command, plus the autocomplete. Each takes the
  * parsed interaction and the services it needs and returns Discord's
  * response body, so the router in index.ts stays a switch. */
-import { choices, focusedValue, message, optionValue, whisper, type Interaction } from "./discord";
-import { cardEmbed, printingEmbed, resultsEmbed, searchEmbed } from "./embed";
+import { EPHEMERAL, choices, focusedValue, message, optionValue, whisper, type Interaction } from "./discord";
+import { cardEmbed, printingEmbed, resultsEmbed, searchEmbed, syntaxEmbed } from "./embed";
 import { queryCards } from "./query";
 import type { EmojiMap } from "./emoji";
 import { matchNames, parseId, resolveName } from "./names";
@@ -28,7 +28,13 @@ export async function card(interaction: Interaction, s: Services): Promise<Respo
   if (!codexId) return whisper(`No card named “${text.trim()}” in the archive.`);
   const found = await s.registry.card(codexId);
   if (!found) return whisper(`No card ${codexId} in the archive.`);
-  return message(cardEmbed(found, sets, s.emojis));
+  return message(cardEmbed(found, sets, s.emojis, await shownPrinting(found, s)));
+}
+
+/** The printing a card embed pictures: its default printing, so the
+ * embed can say which physical print it is showing. */
+async function shownPrinting(found: { default_printing_id: string | null }, s: Services) {
+  return found.default_printing_id ? s.registry.printing(found.default_printing_id) : null;
 }
 
 export async function byId(interaction: Interaction, s: Services): Promise<Response> {
@@ -38,7 +44,7 @@ export async function byId(interaction: Interaction, s: Services): Promise<Respo
   const { sets } = await s.registry.current();
   if (parsed.kind === "card") {
     const found = await s.registry.card(parsed.id);
-    return found ? message(cardEmbed(found, sets, s.emojis)) : whisper(`No card ${parsed.id} in the archive.`);
+    return found ? message(cardEmbed(found, sets, s.emojis, await shownPrinting(found, s))) : whisper(`No card ${parsed.id} in the archive.`);
   }
   const printing = await s.registry.printing(parsed.id);
   if (!printing) return whisper(`No printing ${parsed.id} in the archive.`);
@@ -52,7 +58,12 @@ export async function random(_interaction: Interaction, s: Services): Promise<Re
   const pick = cards[Math.floor(s.random() * cards.length)];
   if (!pick) return whisper("The archive is empty, which should not happen.");
   const found = await s.registry.card(pick.codex_id);
-  return found ? message(cardEmbed(found, sets, s.emojis)) : whisper(`No card ${pick.codex_id} in the archive.`);
+  return found ? message(cardEmbed(found, sets, s.emojis, await shownPrinting(found, s))) : whisper(`No card ${pick.codex_id} in the archive.`);
+}
+
+/** /syntax: the cheat sheet, to the caller alone. */
+export function syntax(_interaction: Interaction, s: Services): Response {
+  return message({ ...syntaxEmbed(s.siteBase), flags: EPHEMERAL });
 }
 
 /** /search: the query API's first matches, or the link to the site's
@@ -73,5 +84,5 @@ export async function search(interaction: Interaction, s: Services): Promise<Res
   return message(searchEmbed(query, s.siteBase));
 }
 
-/** How many matches a /search shows in the channel. */
-export const RESULTS_SHOWN = 8;
+/** How many matches a /search shows in the channel, one embed each. */
+export const RESULTS_SHOWN = 5;

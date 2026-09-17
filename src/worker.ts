@@ -14,7 +14,7 @@
  * why the helpers and constants live here. */
 import { InteractionType, ResponseType, json, whisper, type Interaction } from "./discord";
 import { applicationEmojis } from "./emoji";
-import { autocomplete, byId, card, random, search, type Services } from "./handlers";
+import { autocomplete, byId, card, random, search, syntax, type Services } from "./handlers";
 import { Registry, type Fetch } from "./registry";
 import { verifySignature } from "./verify";
 
@@ -79,7 +79,8 @@ export async function handle(request: Request, env: Env, deps: { registry: Regis
         case "id": return await byId(interaction, services);
         case "random": return await random(interaction, services);
         case "search": return await search(interaction, services);
-        default: return whisper(`I do not know a /${name} command. Try /card, /id, /random or /search.`);
+        case "syntax": return syntax(interaction, services);
+        default: return whisper(`I do not know a /${name} command. Try /card, /id, /random, /search or /syntax.`);
       }
     }
     return json({ error: "unsupported interaction type" }, 400);

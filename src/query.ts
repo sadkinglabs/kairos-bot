@@ -9,6 +9,9 @@ export interface QueryCard {
   codex_id: string; name: string; type: string | null; rarity: string | null; subtypes: string[]; elements: string[];
   cost: number | null; attack: number | null; defense: number | null; power: number | null; life: number | null;
   kairos_url: string;
+  image_urls: Record<string, string> | null;
+  /** The printing the match was judged on (full facts) or the default by id. */
+  printing: { printing_id: string; set_name?: string; product?: string | null; finish?: string | null; artist?: string | null } | null;
 }
 export interface QueryList {
   object: "list"; release: string; q: string; total: number; page: number; page_size: number; has_more: boolean;

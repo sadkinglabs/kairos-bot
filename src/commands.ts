@@ -21,6 +21,10 @@ export const commands = [
     description: "Show a random Sorcery card",
   },
   {
+    name: "syntax",
+    description: "How to write a search: keys, operators and examples",
+  },
+  {
     name: "search",
     description: "Search cards with the Kairos Archive syntax",
     options: [{ type: 3, name: "query", description: "Search syntax, e.g. t:minion e:fire cost<=2", required: true }],

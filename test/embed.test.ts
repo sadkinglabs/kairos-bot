@@ -33,7 +33,7 @@ describe("cardEmbed", () => {
     const e = embeds[0]!;
     expect(e.title).toBe("Moss Troll");
     expect(e.url).toBe("https://kairosarchive.net/cards/C000927");
-    expect(e.description).toBe("Minion — Ordinary Giant\nMana: 3 · Threshold: <:thr_water:4> · Power: 3\nGothic\nC000927 · P002719\n\nStealth\nLoses Stealth if it moves.");
+    expect(e.description).toBe("Minion — Ordinary Giant\nMana: 3 · Threshold: <:thr_water:4> · Power: 3\nPresent in Gothic\nC000927 · P002719\n\nStealth\nLoses Stealth if it moves.");
     expect(e.color).toBe(0x2b6cb0);
     expect(e.image?.url).toMatch(/P002719\..*\.normal\.webp$/);
     expect(e.footer?.text).toBe(CREDIT);

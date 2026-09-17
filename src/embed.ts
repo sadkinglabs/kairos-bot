@@ -61,10 +61,18 @@ export interface Reply { embeds: Embed[]; components: ActionRow[] }
 
 /** The card as its default printing shows it. `setNames` maps set codes
  * to names for the "where it is printed" line. */
-export function cardEmbed(card: Card, setNames: Map<string, string>, emojis: EmojiMap): Reply {
+/** "Shown: Gothic · Booster · Standard, art by Dan Seagrave": which
+ * physical print the picture and the printed lines come from, in words. */
+export function shownLine(printing: Pick<Printing, "set_name" | "product" | "finish" | "artist"> | null | undefined): string {
+  if (!printing) return "";
+  const what = [printing.set_name, printing.product, printing.finish].filter(Boolean).join(" · ");
+  return `Shown: ${what}${printing.artist ? `, art by ${printing.artist}` : ""}`;
+}
+
+export function cardEmbed(card: Card, setNames: Map<string, string>, emojis: EmojiMap, shown: Printing | null = null): Reply {
   const sets = card.set_codes.map((c) => setNames.get(c) ?? c).join(" · ");
   const ids = [card.codex_id, card.default_printing_id].filter(Boolean).join(" · ");
-  const lines = [typeLine(card), statsLine(card, emojis), sets, ids];
+  const lines = [typeLine(card), statsLine(card, emojis), sets ? `Present in ${sets}` : "", shownLine(shown), ids];
   const embed: Embed = {
     title: card.name,
     url: card.kairos_url,
@@ -110,25 +118,60 @@ function links(card: Card): ActionRow {
   return linkRow([{ label: "Open on Kairos Archive", url: card.kairos_url }, { label: "JSON", url: card.api_url }]);
 }
 
-/** A search answered by the query API: the first matches as lines, each
- * a link to its card page, with the count and the way to the rest. */
-export function resultsEmbed(list: QueryList, siteBase: string, apiBase: string): Reply {
+/** A search answered by the query API: one small embed per match with
+ * its art as a thumbnail, the count and the way to the rest as the
+ * message text above them. Discord allows ten embeds a message; five
+ * keeps a channel readable. */
+export function resultsEmbed(list: QueryList, siteBase: string, apiBase: string): Reply & { content: string } {
   const url = `${siteBase}/search?q=${encodeURIComponent(list.q)}`;
-  const lines = list.data.map((c) => {
-    const stats = statsLine({ ...c, thr_air: 0, thr_earth: 0, thr_fire: 0, thr_water: 0, rules_text: "" } as Face, new Map()).replace(/^Mana: /, "");
-    return `[**${c.name}**](${c.kairos_url}) · ${typeLine(c)}${stats ? ` · ${stats}` : ""}`;
-  });
   const shown = list.data.length;
-  const more = list.total > shown ? `\n\n…and ${list.total - shown} more.` : "";
-  const rules = list.rules_text_total > 0 ? `\n${list.rules_text_total} more mention it in their rules text.` : "";
-  const embed: Embed = {
-    title: `${list.total} ${list.total === 1 ? "card" : "cards"} for “${list.q.slice(0, 200)}”`,
-    url,
-    description: (lines.join("\n") + more + rules).slice(0, MAX_DESCRIPTION),
-    color: NEUTRAL_COLOUR,
-    footer: { text: `${CREDIT} · release ${list.release}` },
+  const parts = [`**${list.total} ${list.total === 1 ? "card" : "cards"}** for \`${list.q.slice(0, 200)}\``];
+  if (list.total > shown) parts.push(`showing the first ${shown}`);
+  if (list.rules_text_total > 0) parts.push(`${list.rules_text_total} more mention it in their rules text`);
+  const embeds: Embed[] = list.data.map((c, i) => {
+    const stats = statsLine({ ...c, thr_air: 0, thr_earth: 0, thr_fire: 0, thr_water: 0, rules_text: "" } as Face, new Map()).replace(/^Mana: /, "");
+    const where = c.printing?.set_name ? [c.printing.set_name, c.printing.product, c.printing.finish].filter(Boolean).join(" · ") : "";
+    const embed: Embed = {
+      title: c.name,
+      url: c.kairos_url,
+      description: [typeLine(c), stats, where].filter(Boolean).join(" · "),
+      color: colour(c.elements),
+    };
+    if (c.image_urls?.small) embed.thumbnail = { url: c.image_urls.small };
+    if (i === list.data.length - 1) embed.footer = { text: `${CREDIT} · release ${list.release}` };
+    return embed;
+  });
+  return {
+    content: parts.join(" · "),
+    embeds,
+    components: [linkRow([{ label: "All results", url }, { label: "JSON", url: `${apiBase}/cards?q=${encodeURIComponent(list.q)}` }, { label: "Syntax", url: `${siteBase}/syntax` }])],
   };
-  return { embeds: [embed], components: [linkRow([{ label: "All results", url }, { label: "JSON", url: `${apiBase}/cards?q=${encodeURIComponent(list.q)}` }, { label: "Syntax", url: `${siteBase}/syntax` }])] };
+}
+
+/** The search syntax in one screen: the keys people reach for, the
+ * operators, the flags, and three examples, with the full page a click
+ * away. Sent to the caller alone. */
+export function syntaxEmbed(siteBase: string): Reply {
+  const embed: Embed = {
+    title: "Search syntax, the short version",
+    url: `${siteBase}/syntax`,
+    color: NEUTRAL_COLOUR,
+    description: [
+      "Bare words match the **name**. Combine terms with spaces (and), `or`, `-` (not) and parentheses.",
+      "",
+      "**Card keys**  `t:` type · `cat:` category · `sub:` subtype · `e:` element · `r:` rules text · `k:` keyword · `rarity:` · `cost:` `pow:` `atk:` `def:` `life:` · `air:` `earth:` `fire:` `water:` threshold · `id:` `slug:`",
+      "**Printing keys**  `s:` set · `pro:` product · `f:` finish · `a:` artist · `tl:` typeline · `ft:` flavour · `year:` `date:`",
+      "**Numbers**  `cost:3` `cost>=3` `cost<=2` `cost!=3` `cost:x` `cost:even`",
+      "**Flags**  `is:errata` `is:dfc` `is:reprint` `is:foil` `is:promo` `is:current` `has:image` · `is:multi` for two or more elements",
+      "**Results**  `unique:cards` (default) `unique:prints` `unique:art` · `sort:cost` `order:desc`",
+      "",
+      "**Examples**",
+      "`t:minion e:fire cost<=2`",
+      "`a:\"Drew Tucker\" unique:prints`",
+      "`e:water e:air is:errata sort:cost`",
+    ].join("\n"),
+  };
+  return { embeds: [embed], components: [linkRow([{ label: "Full syntax", url: `${siteBase}/syntax` }, { label: "Advanced search", url: `${siteBase}/advanced` }])] };
 }
 
 /** A search the bot could not run: the site can, so the reply is the
