@@ -1,9 +1,9 @@
 name: ci
 
-# Every push and pull request: lint, type-check, the unit tests, and a
-# dry-run bundle, which is what a deploy would upload. Deploys themselves
-# are Workers Builds' job (the dashboard watches main), so no Cloudflare
-# token lives in this repository.
+# Every push and pull request: lint, type-check, the unit tests (which
+# never touch the network: every dependency is a fake), and a dry-run
+# bundle, which is what a deploy would upload. The deploy workflow runs
+# after this one on main and only when it succeeded.
 
 on:
   push:

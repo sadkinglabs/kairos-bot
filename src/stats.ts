@@ -15,7 +15,7 @@
 import type { Interaction } from "./discord";
 
 export type Kind = "ping" | "command" | "menu" | "component" | "autocomplete" | "unknown";
-export type Outcome = "pong" | "message" | "whisper" | "update" | "choices" | "rejected" | "bad" | "error";
+export type Outcome = "pong" | "message" | "whisper" | "update" | "choices" | "deferred" | "rejected" | "bad" | "error";
 export type Context = "server" | "user" | "unknown";
 
 export interface BotEvent {
@@ -65,6 +65,7 @@ export async function outcomeOf(res: Response): Promise<{ outcome: Outcome; miss
     if (body.type === 1) return { outcome: "pong", miss: "" };
     if (body.type === 8) return { outcome: "choices", miss: "" };
     if (body.type === 7) return { outcome: "update", miss: "" };
+    if (body.type === 5 || body.type === 6) return { outcome: "deferred", miss: "" };
     if (body.type === 4) {
       if ((body.data?.flags ?? 0) & 64) return { outcome: "whisper", miss: MISS.exec(body.data?.content ?? "")?.[1] ?? "" };
       return { outcome: "message", miss: "" };

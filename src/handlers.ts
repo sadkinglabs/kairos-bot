@@ -69,11 +69,14 @@ export async function findCards(interaction: Interaction, s: Services): Promise<
   if (!names.length && text.trim() && text.trim().length <= 80) names.push(text.trim());
   if (!names.length) return whisper("Write card names in double brackets, like [[Polar Bears]], and try again.");
   const { cards, sets } = await s.registry.current();
+  // Every card at once: the fetches are independent, and the deadline is shared.
+  const looked = await Promise.all(names.map(async (name) => {
+    const hit = resolveName(cards, name);
+    return { name, full: hit ? await s.registry.card(hit.codex_id) : null };
+  }));
   const found: { card: Card; shown: Awaited<ReturnType<typeof shownPrinting>> }[] = [];
   const misses: string[] = [];
-  for (const name of names) {
-    const hit = resolveName(cards, name);
-    const full = hit ? await s.registry.card(hit.codex_id) : null;
+  for (const { name, full } of looked) {
     if (full) found.push({ card: full, shown: found.length || names.length > 1 ? null : await shownPrinting(full, s) });
     else misses.push(name);
   }
