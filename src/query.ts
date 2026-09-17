@@ -1,0 +1,36 @@
+/** The query API on api.kairosarchive.net: the site's search syntax,
+ * answered as JSON. The bot asks it for the first few matches of a
+ * /search and shows them; when the API is not there (not deployed yet,
+ * or down) the caller falls back to a link, so /search always answers. */
+import type { Fetch } from "./registry";
+import { USER_AGENT } from "./registry";
+
+export interface QueryCard {
+  codex_id: string; name: string; type: string | null; rarity: string | null; subtypes: string[]; elements: string[];
+  cost: number | null; attack: number | null; defense: number | null; power: number | null; life: number | null;
+  kairos_url: string;
+}
+export interface QueryList {
+  object: "list"; release: string; q: string; total: number; page: number; page_size: number; has_more: boolean;
+  rules_text_total: number; data: QueryCard[];
+}
+export interface QueryError { object: "error"; status: number; code: string; details: string; warnings?: string[] }
+
+export type QueryAnswer = { kind: "list"; list: QueryList } | { kind: "error"; error: QueryError } | { kind: "unavailable" };
+
+/** Up to `limit` matches for `q`. "unavailable" for a network failure, a
+ * non-JSON answer or a 404 on the route itself (the API is not there);
+ * "error" for a JSON error the API chose to send (a bad query). */
+export async function queryCards(apiBase: string, q: string, limit: number, fetchImpl: Fetch = (u, i) => fetch(u, i)): Promise<QueryAnswer> {
+  const url = `${apiBase}/cards?q=${encodeURIComponent(q)}&page_size=${limit}`;
+  try {
+    const res = await fetchImpl(url, { headers: { "user-agent": USER_AGENT, accept: "application/json" } });
+    if (!res.headers.get("content-type")?.includes("json")) return { kind: "unavailable" };
+    const body = (await res.json()) as QueryList | QueryError;
+    if (body.object === "list") return { kind: "list", list: body };
+    if (body.object === "error" && body.code !== "not_found") return { kind: "error", error: body };
+    return { kind: "unavailable" };
+  } catch {
+    return { kind: "unavailable" };
+  }
+}

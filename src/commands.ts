@@ -22,7 +22,7 @@ export const commands = [
   },
   {
     name: "search",
-    description: "Link a Kairos Archive search",
+    description: "Search cards with the Kairos Archive syntax",
     options: [{ type: 3, name: "query", description: "Search syntax, e.g. t:minion e:fire cost<=2", required: true }],
   },
 ] as const;

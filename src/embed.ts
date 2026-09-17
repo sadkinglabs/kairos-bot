@@ -5,6 +5,7 @@
 import type { Card, Face, Printing } from "./registry";
 import { linkRow, type ActionRow, type Embed } from "./discord";
 import type { EmojiMap } from "./emoji";
+import type { QueryList } from "./query";
 
 export const CREDIT = "Kairos Archive · Card text and art © Erik's Curiosa";
 
@@ -109,8 +110,29 @@ function links(card: Card): ActionRow {
   return linkRow([{ label: "Open on Kairos Archive", url: card.kairos_url }, { label: "JSON", url: card.api_url }]);
 }
 
-/** A search the bot cannot run itself: the site does, so the reply is
- * the link, with the query readable in the title. */
+/** A search answered by the query API: the first matches as lines, each
+ * a link to its card page, with the count and the way to the rest. */
+export function resultsEmbed(list: QueryList, siteBase: string, apiBase: string): Reply {
+  const url = `${siteBase}/search?q=${encodeURIComponent(list.q)}`;
+  const lines = list.data.map((c) => {
+    const stats = statsLine({ ...c, thr_air: 0, thr_earth: 0, thr_fire: 0, thr_water: 0, rules_text: "" } as Face, new Map()).replace(/^Mana: /, "");
+    return `[**${c.name}**](${c.kairos_url}) · ${typeLine(c)}${stats ? ` · ${stats}` : ""}`;
+  });
+  const shown = list.data.length;
+  const more = list.total > shown ? `\n\n…and ${list.total - shown} more.` : "";
+  const rules = list.rules_text_total > 0 ? `\n${list.rules_text_total} more mention it in their rules text.` : "";
+  const embed: Embed = {
+    title: `${list.total} ${list.total === 1 ? "card" : "cards"} for “${list.q.slice(0, 200)}”`,
+    url,
+    description: (lines.join("\n") + more + rules).slice(0, MAX_DESCRIPTION),
+    color: NEUTRAL_COLOUR,
+    footer: { text: `${CREDIT} · release ${list.release}` },
+  };
+  return { embeds: [embed], components: [linkRow([{ label: "All results", url }, { label: "JSON", url: `${apiBase}/cards?q=${encodeURIComponent(list.q)}` }, { label: "Syntax", url: `${siteBase}/syntax` }])] };
+}
+
+/** A search the bot could not run: the site can, so the reply is the
+ * link, with the query readable in the title. */
 export function searchEmbed(query: string, siteBase: string): Reply {
   const url = `${siteBase}/search?q=${encodeURIComponent(query)}`;
   const embed: Embed = { title: `Search: ${query.slice(0, 240)}`, url, description: "Results on Kairos Archive, in the site's search syntax.", color: NEUTRAL_COLOUR };

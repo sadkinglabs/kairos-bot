@@ -15,7 +15,7 @@
 import { InteractionType, ResponseType, json, whisper, type Interaction } from "./discord";
 import { applicationEmojis } from "./emoji";
 import { autocomplete, byId, card, random, search, type Services } from "./handlers";
-import { Registry } from "./registry";
+import { Registry, type Fetch } from "./registry";
 import { verifySignature } from "./verify";
 
 export interface Env {
@@ -37,7 +37,7 @@ function registryFor(env: Env): Registry {
   return registry;
 }
 
-export async function handle(request: Request, env: Env, deps: { registry: Registry; random?: () => number } = { registry: registryFor(env) }): Promise<Response> {
+export async function handle(request: Request, env: Env, deps: { registry: Registry; random?: () => number; fetchImpl?: Fetch } = { registry: registryFor(env) }): Promise<Response> {
   if (request.method === "GET") {
     return new Response(`Kairos Archive's Discord bot. Cards for Sorcery: Contested Realm, from ${env.SITE_BASE_URL ?? DEFAULT_SITE}.\n`, { headers: { "content-type": "text/plain; charset=utf-8" } });
   }
@@ -59,7 +59,9 @@ export async function handle(request: Request, env: Env, deps: { registry: Regis
     registry: deps.registry,
     emojis: await applicationEmojis(env.DISCORD_APPLICATION_ID, env.DISCORD_BOT_TOKEN),
     siteBase: env.SITE_BASE_URL ?? DEFAULT_SITE,
+    apiBase: env.REGISTRY_BASE_URL ?? DEFAULT_REGISTRY,
     random: deps.random ?? Math.random,
+    fetchImpl: deps.fetchImpl,
   };
   const name = interaction.data?.name ?? "";
   try {
@@ -71,7 +73,7 @@ export async function handle(request: Request, env: Env, deps: { registry: Regis
         case "card": return await card(interaction, services);
         case "id": return await byId(interaction, services);
         case "random": return await random(interaction, services);
-        case "search": return search(interaction, services);
+        case "search": return await search(interaction, services);
         default: return whisper(`I do not know a /${name} command. Try /card, /id, /random or /search.`);
       }
     }

@@ -2,12 +2,14 @@
  * parsed interaction and the services it needs and returns Discord's
  * response body, so the router in index.ts stays a switch. */
 import { choices, focusedValue, message, optionValue, whisper, type Interaction } from "./discord";
-import { cardEmbed, printingEmbed, searchEmbed } from "./embed";
+import { cardEmbed, printingEmbed, resultsEmbed, searchEmbed } from "./embed";
+import { queryCards } from "./query";
 import type { EmojiMap } from "./emoji";
 import { matchNames, parseId, resolveName } from "./names";
 import type { Registry } from "./registry";
 
-export interface Services { registry: Registry; emojis: EmojiMap; siteBase: string; random: () => number }
+import type { Fetch } from "./registry";
+export interface Services { registry: Registry; emojis: EmojiMap; siteBase: string; apiBase: string; random: () => number; fetchImpl?: Fetch }
 
 export async function autocomplete(interaction: Interaction, s: Services): Promise<Response> {
   const { cards } = await s.registry.current();
@@ -52,8 +54,23 @@ export async function random(_interaction: Interaction, s: Services): Promise<Re
   return found ? message(cardEmbed(found, sets, s.emojis)) : whisper(`No card ${pick.codex_id} in the archive.`);
 }
 
-export function search(interaction: Interaction, s: Services): Response {
+/** /search: the query API's first matches, or the link to the site's
+ * results when the API cannot be reached; a query the parser rejects
+ * comes back as its own messages, to the caller only. */
+export async function search(interaction: Interaction, s: Services): Promise<Response> {
   const query = (optionValue(interaction, "query") ?? "").trim();
   if (!query) return whisper("Give me something to search for.");
+  const answer = await queryCards(s.apiBase, query, RESULTS_SHOWN, s.fetchImpl);
+  if (answer.kind === "list") {
+    if (answer.list.total === 0) return whisper(`Nothing matches “${query}”. Syntax: ${s.siteBase}/syntax`);
+    return message(resultsEmbed(answer.list, s.siteBase, s.apiBase));
+  }
+  if (answer.kind === "error") {
+    const why = answer.error.warnings?.length ? answer.error.warnings.join("\n") : answer.error.details;
+    return whisper(`I could not read that query.\n${why}\nSyntax: ${s.siteBase}/syntax`);
+  }
   return message(searchEmbed(query, s.siteBase));
 }
+
+/** How many matches a /search shows in the channel. */
+export const RESULTS_SHOWN = 8;
