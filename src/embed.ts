@@ -141,6 +141,25 @@ function links(card: Card): ActionRow {
   return linkRow([{ label: "Open on Kairos Archive", url: card.kairos_url }, { label: "JSON", url: card.api_url }]);
 }
 
+/** The matched sentence with the matched words in bold, which is how a
+ * result says why it is a result. The ranges come from the API, worked
+ * out by the matcher that judged the search; they are trusted only as
+ * far as the text they address, so a pair that runs backwards or off
+ * the end is dropped rather than cutting the sentence to pieces. */
+export function boldRanges(text: string, ranges: [number, number][]): string {
+  const clean = ranges
+    .filter(([a, b]) => Number.isInteger(a) && Number.isInteger(b) && a >= 0 && b > a && b <= text.length)
+    .toSorted((x, y) => x[0] - y[0]);
+  let out = "";
+  let last = 0;
+  for (const [start, end] of clean) {
+    if (start < last) continue;                 // never let two marks overlap
+    out += text.slice(last, start) + `**${text.slice(start, end)}**`;
+    last = end;
+  }
+  return out + text.slice(last);
+}
+
 /** A search answered by the query API: one small embed per match with
  * its art as a thumbnail, the count and the way to the rest as the
  * message text above them. Discord allows ten embeds a message; five
@@ -153,7 +172,7 @@ export function resultsEmbed(list: QueryList, siteBase: string, apiBase: string)
   if (list.page > 1) parts.push(`showing ${first}–${first + shown - 1}`);
   else if (list.total > shown) parts.push(`showing the first ${shown}`);
   if (list.rules_text_total > 0) parts.push(`${list.rules_text_total} more mention it in their rules text`);
-  const embeds: Embed[] = list.data.map((c, i) => {
+  const embeds: Embed[] = list.data.map((c) => {
     const stats = statsLine({ ...c, thr_air: 0, thr_earth: 0, thr_fire: 0, thr_water: 0, rules_text: "" } as Face, new Map()).replace(/^Mana: /, "");
     const where = c.printing?.set_name ? [c.printing.set_name, c.printing.product, c.printing.finish].filter(Boolean).join(" · ") : "";
     const embed: Embed = {
@@ -162,8 +181,11 @@ export function resultsEmbed(list: QueryList, siteBase: string, apiBase: string)
       description: [typeLine(c), stats, where].filter(Boolean).join(" · "),
       color: colour(c.elements),
     };
+    // Why this card is here, when the query asked about rules text. The
+    // credit belongs to the message, not to whichever card happens to be
+    // last, so a list of results carries none.
+    if (c.matched?.text) embed.description += `\n${boldRanges(c.matched.text, c.matched.ranges ?? [])}`;
     if (c.image_urls?.small) embed.thumbnail = { url: c.image_urls.small };
-    if (i === list.data.length - 1) embed.footer = { text: `${CREDIT} · release ${list.release}` };
     return embed;
   });
   return {
@@ -209,7 +231,6 @@ export function foundEmbeds(found: { card: Card; shown: Printing | null }[], mis
     return { ...cardEmbed(only.card, setNames, emojis, only.shown), ...(content ? { content } : {}) };
   }
   const embeds = found.map((f) => smallEmbed(f.card, setNames, emojis));
-  if (embeds.length) embeds[embeds.length - 1]!.footer = { text: CREDIT };
   return { ...(content ? { content } : {}), embeds, components: [linkRow(found.map((f) => ({ label: f.card.name.slice(0, 80), url: f.card.kairos_url })).slice(0, 5))] };
 }
 

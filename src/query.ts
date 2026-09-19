@@ -12,6 +12,11 @@ export interface QueryCard {
   image_urls: Record<string, string> | null;
   /** The printing the match was judged on (full facts) or the default by id. */
   printing: { printing_id: string; set_name?: string; product?: string | null; finish?: string | null; artist?: string | null } | null;
+  /** Why this card is a result, when the query asked about rules text:
+   * the sentence that matched and where inside it. The API works the
+   * ranges out with the matcher that judged the search, so the bot marks
+   * them rather than matching the text again and disagreeing. */
+  matched?: { text: string; ranges: [number, number][] } | null;
 }
 export interface QueryList {
   object: "list"; release: string; q: string; total: number; page: number; page_size: number; has_more: boolean;

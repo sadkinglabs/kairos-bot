@@ -4,7 +4,8 @@ import { describe, expect, it } from "vitest";
 import { handle, type Env } from "../src/worker";
 import { Registry } from "../src/registry";
 import { BASE, fakeFetch } from "./fake";
-import { queryCards } from "../src/query";
+import { queryCards, type QueryList } from "../src/query";
+import { boldRanges, resultsEmbed } from "../src/embed";
 
 const hex = (b: ArrayBuffer) => [...new Uint8Array(b)].map((x) => x.toString(16).padStart(2, "0")).join("");
 const pair = (await crypto.subtle.generateKey({ name: "Ed25519" }, true, ["sign", "verify"])) as CryptoKeyPair;
@@ -44,7 +45,9 @@ describe("/search with the query API", () => {
     expect(second!.title).toBe("Black Knight");
     expect(second!.description).toBe("Minion — Exceptional Mortal · 5 · Attack: 5 / Defense: 3 · Power: 4");
     expect(second!.thumbnail).toBeUndefined();
-    expect(second!.footer!.text).toContain("release v3.9.0");
+    // No embed in a list carries the credit: it belongs to the message,
+    // and hanging it off the last card read as that card's own note.
+    expect(second!.footer).toBeUndefined();
     expect(body.data.components![0]!.components.map((b) => b.label)).toEqual(["Next 5"]);
     expect(body.data.components![1]!.components.map((b) => b.label)).toEqual(["All results", "JSON", "Syntax"]);
     expect(body.data.components![1]!.components[0]!.url).toBe("https://site.test/search?q=t%3Aminion%20e%3Afire");
@@ -103,5 +106,62 @@ describe("queryCards", () => {
   it("reads unavailable for a network error or a non-JSON answer", async () => {
     expect(await queryCards(BASE, "x", 5, async () => { throw new Error("boom"); })).toEqual({ kind: "unavailable" });
     expect(await queryCards(BASE, "x", 5, async () => new Response("<html>", { headers: { "content-type": "text/html" } }))).toEqual({ kind: "unavailable" });
+  });
+});
+
+describe("why a card matched", () => {
+  it("bolds the matched words inside the sentence the API sent", () => {
+    expect(boldRanges("Submerge (This may attack submerged targets.)", [[0, 8]]))
+      .toBe("**Submerge** (This may attack submerged targets.)");
+  });
+  it("marks several, in order, without them running together", () => {
+    expect(boldRanges("drag and drag", [[0, 4], [9, 13]])).toBe("**drag** and **drag**");
+    expect(boldRanges("drag and drag", [[9, 13], [0, 4]])).toBe("**drag** and **drag**");
+  });
+  it("ignores a range that overlaps one already marked", () => {
+    expect(boldRanges("dragon", [[0, 6], [0, 4]])).toBe("**dragon**");
+  });
+  it("ignores a range that does not address the text it was given", () => {
+    const text = "Submerge";
+    expect(boldRanges(text, [[0, 99]])).toBe(text);        // past the end
+    expect(boldRanges(text, [[5, 2]])).toBe(text);         // backwards
+    expect(boldRanges(text, [[-3, 4]])).toBe(text);        // before the start
+    expect(boldRanges(text, [[1.5, 4] as unknown as [number, number]])).toBe(text);
+    expect(boldRanges(text, [])).toBe(text);
+  });
+  it("leaves the sentence alone when nothing is marked", () => {
+    expect(boldRanges("Nothing to see", [])).toBe("Nothing to see");
+  });
+});
+
+describe("a results message", () => {
+  const withMatch: QueryList = {
+    ...list,
+    object: "list",
+    q: "r=submerge",
+    data: [
+      { ...list.data[0]!, matched: { text: "Submerge (This may attack submerged targets.)", ranges: [[0, 8]] as [number, number][] } },
+      { ...list.data[1]! },
+    ],
+  };
+  it("shows why each card matched, and only for the cards that carry it", () => {
+    const reply = resultsEmbed(withMatch, "https://site.test", BASE);
+    expect(reply.embeds[0]!.description).toContain("**Submerge**");
+    expect(reply.embeds[1]!.description).not.toContain("**");
+  });
+  it("keeps the facts line above the reason", () => {
+    const reply = resultsEmbed(withMatch, "https://site.test", BASE);
+    const lines = reply.embeds[0]!.description!.split("\n");
+    expect(lines[0]).toContain("Minion");
+    expect(lines[1]).toContain("**Submerge**");
+  });
+  it("carries no credit footer: the credit belongs to the message, not the last card", () => {
+    const reply = resultsEmbed(withMatch, "https://site.test", BASE);
+    for (const embed of reply.embeds) expect(embed.footer).toBeUndefined();
+  });
+  it("still says how many, and still offers the way to the rest", () => {
+    const reply = resultsEmbed(withMatch, "https://site.test", BASE);
+    expect(reply.content).toContain("32 cards");
+    expect(reply.components.length).toBeGreaterThan(0);
   });
 });
