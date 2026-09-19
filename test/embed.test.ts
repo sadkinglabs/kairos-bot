@@ -101,7 +101,9 @@ describe("foundEmbeds", () => {
     expect(two.content).toBeUndefined();
     expect(two.embeds.map((e) => e.title)).toEqual(["Moss Troll", "Polar Bears"]);
     expect(two.embeds[1]!.thumbnail?.url).toMatch(/small\.webp$/);
-    expect(two.embeds[1]!.footer?.text).toBe(CREDIT);
+    // A list of cards carries no credit on its last embed either: the one
+    // card in full, above, is where it belongs.
+    expect(two.embeds[1]!.footer).toBeUndefined();
     expect(labels(two.components[0]!)).toEqual(["Moss Troll", "Polar Bears"]);
     expect(smallEmbed(bears, setNames, none).description).toBe("Minion — Ordinary Beast · Mana: 2 · Threshold: 1 Water · Power: 2 · Alpha · Beta · C000230");
   });
