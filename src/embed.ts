@@ -507,8 +507,10 @@ export function setEmbed(entry: SetEntry, set: SetObject, sample: Card | null, s
   };
   if (sample?.image_urls) embed.thumbnail = { url: sample.image_urls.small };
   const buttons = [{ label: "Open on Kairos Archive", url: entry.kairos_url }, { label: "Search this set", url: `${siteBase}/search?q=${encodeURIComponent(`s:${entry.set_code}`)}` }];
-  // A release set also has promos and curios filed elsewhere that came out with it.
-  if (/^\d{3}$/.test(entry.set_code) && entry.set_code !== "999") {
+  // A release set also has promos and curios filed elsewhere that came out
+  // with it. Whether it is a release is recorded (kind), never read from
+  // the code; a release made before kind existed gets no button.
+  if (entry.kind === "release") {
     buttons.push({ label: "Promos released with it", url: `${siteBase}/search?q=${encodeURIComponent(`with:${entry.set_code} -s:${entry.set_code} unique:prints`)}` });
   }
   buttons.push({ label: "JSON", url: entry.api_url });

@@ -118,6 +118,10 @@ export interface SetEntry {
   released_at: string | null;
   cards: number;
   printings: number;
+  /** What the set is, as the registry records it (schema 12): a set
+   * release, the publisher's promo bucket, or a set of the registry's own.
+   * Absent in releases before v3.4.0. */
+  kind?: "release" | "promo" | "registry";
   api_url: string;
   kairos_url: string;
 }

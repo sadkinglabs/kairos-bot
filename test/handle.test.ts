@@ -91,9 +91,12 @@ describe("handle", () => {
     const byName = await read(command("set", [{ name: "set", value: "goth" }]));
     expect(byName.data.embeds![0]!.title).toBe("Gothic");
     expect(byName.data.embeds![0]!.thumbnail?.url).toMatch(/small\.webp$/);
-    const byCode = await read(command("set", [{ name: "set", value: "4" }]));
+    const byCode = await read(command("set", [{ name: "set", value: "004" }]));
     expect(byCode.data.embeds![0]!.title).toBe("Arthurian Legends");
     expect(byCode.data.embeds![0]!.description).toContain("Black Knight, Dame Britomart, Druid");
+    // A set code is a label, written in full: "4" is not "004".
+    const notACode = await read(command("set", [{ name: "set", value: "4" }]));
+    expect(notACode.data.embeds?.[0]?.title).not.toBe("Arthurian Legends");
     const none = await read(command("set", [{ name: "set", value: "omega" }]));
     expect(none.data.content).toBe("No set named “omega” in the archive.");
     const suggest = await read(command("set", [{ name: "set", value: "a", focused: true }], 4));

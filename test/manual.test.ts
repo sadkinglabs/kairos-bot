@@ -66,15 +66,24 @@ describe("sets", () => {
     const withCurios = [...sets, { set_code: "CUR", set_name: "Curios" }];
     expect(matchSets(withCurios, "cur")[0]!.set_code).toBe("CUR");
     expect(matchSets(withCurios, "CUR")[0]!.set_code).toBe("CUR");
-    expect(matchSets(withCurios, "6")[0]!.set_code).toBe("006");
+    expect(matchSets(withCurios, "006")[0]!.set_code).toBe("006");
+    // A code is a label, written in full: "6" is not "006".
+    expect(matchSets(withCurios, "6").map((s) => s.set_code)).not.toContain("006");
   });
-  it("a release set links to the promos released with it; 999 does not", () => {
-    const entry = sets.find((s) => s.set_code === "006") as SetEntry;
+  it("a release set links to the promos released with it, as its recorded kind says", () => {
+    const entry = { ...(sets.find((s) => s.set_code === "006") as SetEntry), kind: "release" as const };
     const buttons = (setEmbed(entry, setObjects["006"] as SetObject, null, "https://site.test").components[0]!.components as LinkButton[]);
     expect(buttons.map((b) => b.label)).toContain("Promos released with it");
     expect(buttons.find((b) => b.label === "Promos released with it")!.url).toBe(`https://site.test/search?q=${encodeURIComponent("with:006 -s:006 unique:prints")}`);
-    const promo = { ...entry, set_code: "999", set_name: "Promo" };
+    const promo = { ...entry, set_code: "999", set_name: "Promo", kind: "promo" as const };
     expect((setEmbed(promo, setObjects["006"] as SetObject, null, "https://site.test").components[0]!.components as LinkButton[]).map((b) => b.label))
       .not.toContain("Promos released with it");
+
+    // A code shaped like a release's is still not one unless recorded so,
+    // and a release made before kind existed says nothing.
+    for (const other of [{ ...entry, set_code: "998", kind: "promo" as const }, { ...entry, kind: undefined }]) {
+      expect((setEmbed(other, setObjects["006"] as SetObject, null, "https://site.test").components[0]!.components as LinkButton[]).map((b) => b.label))
+        .not.toContain("Promos released with it");
+    }
   });
 });
