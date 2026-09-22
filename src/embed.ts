@@ -392,8 +392,8 @@ export function wherePrinted(printings: PrintingSummary[]): string {
  * new text while still showing what moved.
  *
  * Each face also names the sets that carry it, because the question a
- * player actually has is not "what changed" but "does the copy in my
- * hand play the way it is printed". */
+ * player actually has is not "what changed" but "which values does the
+ * copy in my hand carry". */
 export function historyEmbed(card: Card, emojis: EmojiMap, siteBase: string): Reply {
   const rows = card.card_history.toSorted((a, b) => a.valid_from.localeCompare(b.valid_from));
   const placed = placeFaces(rows, card.printings ?? []);
@@ -402,7 +402,10 @@ export function historyEmbed(card: Card, emojis: EmojiMap, siteBase: string): Re
   const fields: EmbedField[] = rows.map((row, i) => {
     const [icon] = SOURCE[row.source] ?? ["•"];
     const fromCard = row.source === "card";
-    const label = fromCard ? "As printed" : i === newest ? "As it plays now" : "Earlier record";
+    // Labelled by time alone. "As printed" would be a claim this data
+    // cannot keep: a corrected reprint is also printed, and would carry
+    // the current values. Where the face came from is the icon's job.
+    const label = i === newest ? "Current values" : "Historical values";
     const dated = fromCard ? `in force from ${row.valid_from}` : `recorded ${row.valid_from}`;
 
     const lines: string[] = [];
@@ -433,7 +436,7 @@ export function historyEmbed(card: Card, emojis: EmojiMap, siteBase: string): Re
   const summary = quiet
     ? `No changes recorded. One face on record since ${rows[0]?.valid_from ?? "the first release"}.`
     : card.errata
-      ? "⚠️ This card plays differently from how it is printed."
+      ? "⚠️ This card has changed. Which values a copy carries depends on its printing."
       : `${rows.length} ${rows.length === 1 ? "face" : "faces"} on record.`;
   const embed: Embed = {
     title: `History of ${card.name}`,

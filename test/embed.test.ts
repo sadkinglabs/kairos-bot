@@ -114,11 +114,11 @@ describe("historyEmbed", () => {
     const { embeds, components } = historyEmbed(troll, emojis, "https://site.test");
     const e = embeds[0]!;
     expect(e.title).toBe("History of Moss Troll");
-    expect(e.description).toBe("Minion — Ordinary Giant · C000927\n⚠️ This card plays differently from how it is printed.");
+    expect(e.description).toBe("Minion — Ordinary Giant · C000927\n⚠️ This card has changed. Which values a copy carries depends on its printing.");
     expect(e.thumbnail?.url).toBe(troll.image_urls!.small);
     expect(e.fields!.map((f) => f.name)).toEqual([
-      "✍️ As printed · in force from 2025-12-05",
-      "🌐 As it plays now · recorded 2026-09-15",
+      "✍️ Historical values · in force from 2025-12-05",
+      "🌐 Current values · recorded 2026-09-15",
       "🏷️ 2025-12-05 → 2026-01-10",
     ]);
     expect(e.fields![2]!.value).toBe("Named “Moss Troll of the Fen”.");
