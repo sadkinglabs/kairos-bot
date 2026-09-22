@@ -52,16 +52,16 @@ export function bracketedNames(text: string, limit = 5): string[] {
   return names;
 }
 
-/** Sets matching `text` by code ("006", "6") or by name, best first. */
+/** Sets matching `text` by code ("006", "cur") or by name, best first. A
+ * code is a label, compared as a string: "6" is not "006". */
 export function matchSets<T extends { set_code: string; set_name: string }>(sets: T[], text: string, limit = 25): T[] {
   const q = fold(text);
   if (!q) return sets.slice(0, limit);
-  const asCode = /^\d{1,3}$/.test(q) ? q.padStart(3, "0") : null;
   const ranked: { set: T; rank: number }[] = [];
   for (const set of sets) {
     const name = fold(set.set_name);
     let rank: number;
-    if (set.set_code === asCode || name === q) rank = 0;
+    if (set.set_code.toLowerCase() === q || name === q) rank = 0;
     else if (name.startsWith(q)) rank = 1;
     else if (name.includes(q)) rank = 2;
     else continue;

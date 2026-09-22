@@ -92,9 +92,9 @@ export async function component(interaction: Interaction, s: Services): Promise<
   const pick = /^pick:(C\d{6})$/.exec(id);
   if (pick) {
     const printingId = interaction.data?.values?.[0] ?? "";
-    const [printing, owner] = await Promise.all([s.registry.printing(printingId), s.registry.card(pick[1]!)]);
+    const [printing, owner, { sets }] = await Promise.all([s.registry.printing(printingId), s.registry.card(pick[1]!), s.registry.current()]);
     if (!printing || !owner || printing.codex_id !== owner.codex_id) return whisper(`No printing ${printingId} for ${pick[1]}.`);
-    return update({ content: "", ...printingEmbed(printing, owner, s.emojis) });
+    return update({ content: "", ...printingEmbed(printing, owner, s.emojis, sets) });
   }
   const page = /^page:(\d{1,4}):([\s\S]+)$/.exec(id);
   if (page) {
@@ -124,7 +124,7 @@ export async function byId(interaction: Interaction, s: Services): Promise<Respo
   if (!printing) return whisper(`No printing ${parsed.id} in the archive.`);
   const owner = await s.registry.card(printing.codex_id);
   if (!owner) return whisper(`Printing ${parsed.id} names a card the archive does not serve.`);
-  return message(printingEmbed(printing, owner, s.emojis));
+  return message(printingEmbed(printing, owner, s.emojis, sets));
 }
 
 /** /random: a draw from the whole index, or, with a query, from its
@@ -144,7 +144,7 @@ export async function random(interaction: Interaction, s: Services): Promise<Res
     const found = await s.registry.card(answer.codex_id);
     if (!found) return whisper(`No card ${answer.codex_id} in the archive.`);
     const drawn = answer.printing_id && answer.printing_id !== found.default_printing_id ? await s.registry.printing(answer.printing_id) : null;
-    if (drawn) return message(printingEmbed(drawn, found, s.emojis));
+    if (drawn) return message(printingEmbed(drawn, found, s.emojis, sets));
     return message(cardEmbed(found, sets, s.emojis, await shownPrinting(found, s)));
   }
   const pick = cards[Math.floor(s.random() * cards.length)];

@@ -46,7 +46,28 @@ export interface Face {
   rules_text: string;
 }
 
-export interface Card extends Face {
+/** A fact the official API does not say, with where it came from (schema 12). */
+export interface Note { text: string; source: string; recorded: string }
+
+/** Where a hand-recorded record came from (schema 12); null for a record the
+ * registry only ever observed in the official API. */
+export interface Manual {
+  source: string;
+  recorded: string;
+  confirmed_at: string | null;
+  withdrawn: { on: string; reason: string } | null;
+}
+
+/** The schema 12 fields, optional so the bot reads a v3.3.x release too:
+ * who stands behind a record ("api", or "manual" when the registry
+ * recorded it by hand because the API does not serve it), and its notes. */
+export interface Provenance {
+  origin?: "api" | "manual";
+  manual?: Manual | null;
+  notes?: Note[];
+}
+
+export interface Card extends Face, Provenance {
   codex_id: string;
   name: string;
   keywords: string[];
@@ -75,15 +96,18 @@ export interface PrintingSummary {
   finish: string;
   printed_as_current: boolean | null;
   retired_at: string | null;
+  released_with?: string | null;
+  origin?: "api" | "manual";
 }
 
 /** One state of the card's gameplay face: the values it had between
- * two dates. `source` is "api" when the official API served the face and
- * "card" when it was recorded from the printed card. */
+ * two dates. `source` is "api" when the official API served the face,
+ * "card" when it was recorded from the printed card, and "manual" for a
+ * card the registry recorded by hand because the API does not serve it. */
 export interface HistoryRow extends Face {
   valid_from: string;
   valid_to: string | null;
-  source: "api" | "card";
+  source: "api" | "card" | "manual";
   keywords: string[];
   back: Face | null;
 }
@@ -94,6 +118,10 @@ export interface SetEntry {
   released_at: string | null;
   cards: number;
   printings: number;
+  /** What the set is, as the registry records it (schema 12): a set
+   * release, the publisher's promo bucket, or a set of the registry's own.
+   * Absent in releases before v3.4.0. */
+  kind?: "release" | "promo" | "registry";
   api_url: string;
   kairos_url: string;
 }
@@ -105,7 +133,7 @@ export interface SetObject extends Omit<SetEntry, "cards"> {
 
 export interface ImageUrls { small: string; normal: string; large: string; original: string }
 
-export interface Printing {
+export interface Printing extends Provenance {
   printing_id: string;
   codex_id: string;
   card_name: string;
@@ -115,8 +143,12 @@ export interface Printing {
   product: string;
   finish: string;
   artist: string | null;
-  flavour_text: string;
-  typeline: string;
+  /** Null for a manual printing whose text is not known. */
+  flavour_text: string | null;
+  typeline: string | null;
+  /** The set release this printing belongs to (schema 12): its own set, or
+   * for a promo (999) or curio (CUR), the one the registry recorded. */
+  released_with?: string | null;
   printed_as_current: boolean | null;
   retired_at: string | null;
   api_url: string;

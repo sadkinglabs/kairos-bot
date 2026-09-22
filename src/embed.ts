@@ -2,7 +2,7 @@
  * unfurl uses (type line, numbers, where it is printed, the ids, then
  * the rules text), with the thresholds drawn as the element symbols when
  * the bot has them, the art below, and the publisher credited. Pure. */
-import type { Card, Face, HistoryRow, Printing, PrintingSummary, SetEntry, SetObject } from "./registry";
+import type { Card, Face, HistoryRow, Printing, PrintingSummary, Provenance, SetEntry, SetObject } from "./registry";
 import { CUSTOM_ID_MAX, buttonRow, linkRow, selectRow, type ActionRow, type Embed, type EmbedField } from "./discord";
 import type { EmojiMap } from "./emoji";
 import type { QueryList } from "./query";
@@ -73,14 +73,28 @@ export function shownLine(printing: Pick<Printing, "set_name" | "product" | "fin
   return `Shown: ${what}${printing.artist ? `, art by ${printing.artist}` : ""}`;
 }
 
+/** Who stands behind a record, when it is not simply the official API, and
+ * the notes on it, as lines to set under the rules text. Empty for an
+ * ordinary record and on a release made before schema 12. */
+export function provenanceLines(record: Provenance, kind: "card" | "printing"): string[] {
+  const lines: string[] = [];
+  const m = record.manual ?? null;
+  if (m?.withdrawn) lines.push(`*Withdrawn ${m.withdrawn.on}: ${m.withdrawn.reason}*`);
+  if (m && record.origin === "manual") lines.push(`*Recorded by hand: the official API does not serve this ${kind}. Source: ${m.source}.*`);
+  else if (m?.confirmed_at) lines.push(`*Recorded by hand, then confirmed in the official API on ${m.confirmed_at}.*`);
+  for (const note of record.notes ?? []) lines.push(`📝 ${note.text} *(${note.source})*`);
+  return lines;
+}
+
 export function cardEmbed(card: Card, setNames: Map<string, string>, emojis: EmojiMap, shown: Printing | null = null): Reply {
   const sets = card.set_codes.map((c) => setNames.get(c) ?? c).join(" · ");
   const ids = [card.codex_id, card.default_printing_id].filter(Boolean).join(" · ");
   const lines = [typeLine(card), statsLine(card, emojis), sets ? `Present in ${sets}` : "", shownLine(shown), ids];
+  const after = [card.errata ? "*This card has recorded errata.*" : "", ...provenanceLines(card, "card")].filter(Boolean);
   const embed: Embed = {
     title: card.name,
     url: card.kairos_url,
-    description: describe(lines, card.rules_text + (card.errata ? "\n\n*This card has recorded errata.*" : "")),
+    description: describe(lines, [card.rules_text, ...after].filter(Boolean).join("\n\n")),
     color: colour(card.elements),
     footer: { text: CREDIT },
   };
@@ -101,7 +115,7 @@ export function pickerRows(card: Pick<Card, "codex_id" | "printings">, selected:
   const options = card.printings.slice(0, 25).map((p) => ({
     label: printingLabel(p).slice(0, 100),
     value: p.printing_id,
-    description: [p.released_at, p.printing_id, p.printed_as_current === false ? "earlier values" : "", p.retired_at ? "retired" : ""].filter(Boolean).join(" · ").slice(0, 100),
+    description: [p.released_at, p.printing_id, p.printed_as_current === false ? "earlier values" : "", p.retired_at ? "retired" : "", p.origin === "manual" ? "recorded by hand" : ""].filter(Boolean).join(" · ").slice(0, 100),
     ...(p.printing_id === selected ? { default: true } : {}),
   }));
   return [selectRow(`pick:${card.codex_id}`, "Show another printing", options)];
@@ -114,18 +128,24 @@ export function printingLabel(p: Pick<PrintingSummary, "set_name" | "product" | 
 /** One physical print: its own art, its set, product and finish, the
  * artist and flavour text, and a note when its printed values are out of
  * date. The gameplay lines still come from the card. */
-export function printingEmbed(printing: Printing, card: Card, emojis: EmojiMap): Reply {
+export function printingEmbed(printing: Printing, card: Card, emojis: EmojiMap, setNames: Map<string, string> = new Map()): Reply {
   const where = [printing.set_name, printing.product, printing.finish].filter(Boolean).join(" · ");
+  // A promo or curio is filed outside the set it came out with; say which.
+  const release = printing.released_with && printing.released_with !== printing.set_code
+    ? `Released with ${setNames.get(printing.released_with) ?? printing.released_with}` : "";
   const lines = [
     typeLine(card),
     statsLine(card, emojis),
     [where, printing.artist ? `Art by ${printing.artist}` : ""].filter(Boolean).join(" · "),
+    release,
     `${card.codex_id} · ${printing.printing_id}`,
   ];
   const notes: string[] = [];
-  if (printing.flavour_text.trim()) notes.push(`*${printing.flavour_text.trim()}*`);
+  const flavour = (printing.flavour_text ?? "").trim();
+  if (flavour) notes.push(`*${flavour}*`);
   if (printing.printed_as_current === false) notes.push("*This printing shows earlier values; the card has since changed.*");
   if (printing.retired_at) notes.push(`*Retired ${printing.retired_at}.*`);
+  notes.push(...provenanceLines(printing, "printing"));
   const embed: Embed = {
     title: `${card.name} — ${where}`,
     url: printing.kairos_url,
@@ -315,7 +335,7 @@ function tokens(text: string): string[] {
   return text.split(/(\n)| +/).filter((t): t is string => Boolean(t));
 }
 
-const SOURCE: Record<string, [string, string]> = { api: ["🌐", "as the official API served it"], card: ["✍️", "as printed on the card"] };
+const SOURCE: Record<string, [string, string]> = { api: ["🌐", "as the official API served it"], card: ["✍️", "as printed on the card"], manual: ["🖐️", "recorded by hand; the official API does not serve this card"] };
 
 /** Which printings show which face.
  *
@@ -401,7 +421,8 @@ export function historyEmbed(card: Card, emojis: EmojiMap, siteBase: string): Re
 
   const fields: EmbedField[] = rows.map((row, i) => {
     const [icon] = SOURCE[row.source] ?? ["•"];
-    const fromCard = row.source === "card";
+    // A manual card's face was read from the card too, and is dated the same way.
+    const fromCard = row.source === "card" || row.source === "manual";
     // Labelled by time alone. "As printed" would be a claim this data
     // cannot keep: a corrected reprint is also printed, and would carry
     // the current values. Where the face came from is the icon's job.
@@ -434,7 +455,9 @@ export function historyEmbed(card: Card, emojis: EmojiMap, siteBase: string): Re
 
   const quiet = rows.length < 2 && fields.length < 2;
   const summary = quiet
-    ? `No changes recorded. One face on record since ${rows[0]?.valid_from ?? "the first release"}.`
+    ? rows[0]?.source === "manual"
+      ? `No changes recorded. One face, recorded by hand from the card: the official API does not serve it. In force from ${rows[0].valid_from}.`
+      : `No changes recorded. One face on record since ${rows[0]?.valid_from ?? "the first release"}.`
     : card.errata
       ? "⚠️ This card has changed. Which values a copy carries depends on its printing."
       : `${rows.length} ${rows.length === 1 ? "face" : "faces"} on record.`;
@@ -483,7 +506,15 @@ export function setEmbed(entry: SetEntry, set: SetObject, sample: Card | null, s
     footer: { text: CREDIT },
   };
   if (sample?.image_urls) embed.thumbnail = { url: sample.image_urls.small };
-  return { embeds: [embed], components: [linkRow([{ label: "Open on Kairos Archive", url: entry.kairos_url }, { label: "Search this set", url: `${siteBase}/search?q=${encodeURIComponent(`s:${entry.set_code}`)}` }, { label: "JSON", url: entry.api_url }])] };
+  const buttons = [{ label: "Open on Kairos Archive", url: entry.kairos_url }, { label: "Search this set", url: `${siteBase}/search?q=${encodeURIComponent(`s:${entry.set_code}`)}` }];
+  // A release set also has promos and curios filed elsewhere that came out
+  // with it. Whether it is a release is recorded (kind), never read from
+  // the code; a release made before kind existed gets no button.
+  if (entry.kind === "release") {
+    buttons.push({ label: "Promos released with it", url: `${siteBase}/search?q=${encodeURIComponent(`with:${entry.set_code} -s:${entry.set_code} unique:prints`)}` });
+  }
+  buttons.push({ label: "JSON", url: entry.api_url });
+  return { embeds: [embed], components: [linkRow(buttons)] };
 }
 
 /** The search syntax in one screen: the keys people reach for, the
@@ -498,9 +529,9 @@ export function syntaxEmbed(siteBase: string): Reply {
       "Bare words match the **name**. Combine terms with spaces (and), `or`, `-` (not) and parentheses.",
       "",
       "**Card keys**  `t:` type · `cat:` category · `sub:` subtype · `e:` element · `r:` rules text · `k:` keyword · `rarity:` · `cost:` `pow:` `atk:` `def:` `life:` · `air:` `earth:` `fire:` `water:` threshold · `id:` `slug:`",
-      "**Printing keys**  `s:` set · `pro:` product · `f:` finish · `a:` artist · `tl:` typeline · `ft:` flavour · `year:` `date:`",
+      "**Printing keys**  `s:` set · `with:` the release it came out with · `pro:` product · `f:` finish · `a:` artist · `tl:` typeline · `ft:` flavour · `year:` `date:`",
       "**Numbers**  `cost:3` `cost>=3` `cost<=2` `cost!=3` `cost:x` `cost:even`",
-      "**Flags**  `is:errata` `is:dfc` `is:reprint` `is:foil` `is:promo` `is:current` `has:image` · `is:multi` for two or more elements",
+      "**Flags**  `is:errata` `is:dfc` `is:reprint` `is:foil` `is:promo` `is:current` `is:manual` `has:image` · `is:multi` for two or more elements",
       "**Results**  `unique:cards` (default) `unique:prints` `unique:art` · `sort:cost` `order:desc`",
       "",
       "**Examples**",
