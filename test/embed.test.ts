@@ -130,29 +130,30 @@ describe("historyEmbed", () => {
   // the next field backwards in your head.
   it("prints the oldest face in full, not just a label", () => {
     const e = historyEmbed(troll, emojis, "https://site.test").embeds[0]!;
-    expect(e.fields![0]!.value).toBe("*No printing carries this face*\nStealth\nLoses Stealth if it moves or attacks.");
+    expect(e.fields![0]!.value).toBe("*Shown on Gothic*\nStealth\nLoses Stealth if it moves or attacks.");
   });
 
   it("prints each later face in full too, with the change marked on it", () => {
     const e = historyEmbed(troll, emojis, "https://site.test").embeds[0]!;
-    expect(e.fields![1]!.value).toBe("*Shown on Gothic*\nMana 4 → 3\nStealth\nLoses Stealth if it ~~moves or attacks.~~ **moves.**");
+    expect(e.fields![1]!.value).toBe("*No printing carries this face*\nMana 4 → 3\nStealth\nLoses Stealth if it ~~moves or attacks.~~ **moves.**");
     // Reading past the struck words gives the current text.
     expect(e.fields![1]!.value.replace(/~~[^~]*~~/g, "").replace(/\*\*/g, "")).toContain("Loses Stealth if it  moves.");
   });
 
-  it("names the sets that carry each face", () => {
+  // Moss Troll's only printings predate the change, so the printed face
+  // is the one on shelves and the current face is on no card at all -
+  // which is exactly the thing a player at a table needs told.
+  it("names the sets that carry each face, and says when none does", () => {
     const e = historyEmbed(troll, emojis, "https://site.test").embeds[0]!;
-    expect(e.fields![1]!.value).toContain("*Shown on Gothic*");
+    expect(e.fields![0]!.value).toContain("*Shown on Gothic*");
+    expect(e.fields![1]!.value).toContain("*No printing carries this face*");
   });
 
-  // Druid: two printings recorded as showing earlier values, but only one
-  // face on record - so they cannot be pinned to a face, and saying why
-  // is the whole job of this field.
-  it("sets aside the printings it cannot place, and says why for each", () => {
+  it("sets aside the printings it cannot place, and says why", () => {
     const e = historyEmbed(druid, emojis, "https://site.test").embeds[0]!;
     const aside = e.fields!.find((f) => f.name === "❔ Not placed")!;
     expect(aside).toBeDefined();
-    expect(aside.value).toBe("*Arthurian Legends BoxTopper · Promo Dust* — shows earlier values, but no earlier face is on record.");
+    expect(aside.value).toBe("*Promo Dust · Promo OrganizedPlay* — release date unknown, so not placed.");
   });
   it("says so when nothing changed, with no fields", () => {
     const e = historyEmbed(bears, none, "https://site.test").embeds[0]!;
@@ -207,20 +208,15 @@ const aPrint = (id: string, set: string, released: string | null, current: boole
 describe("placing printings on faces", () => {
   const rows = [aRow("2023-01-01", "2024-01-01"), aRow("2024-01-01", "2025-01-01"), aRow("2025-01-01", null)];
 
-  it("puts a printing that shows current values on the newest face", () => {
+  it("places a printing on the face in force when it was released", () => {
     const { rows: on } = placeFaces(rows, [aPrint("P1", "Alpha", "2023-06-01", true)]);
-    expect(on[2]!.map((p) => p.printing_id)).toEqual(["P1"]);
-    expect(on[0]).toEqual([]);
+    expect(on[0]!.map((p) => p.printing_id)).toEqual(["P1"]);
+    expect(on[2]).toEqual([]);
   });
 
   // The flag is an observed fact; the release date is only an inference
   // about which earlier face. Where they disagree the flag decides.
-  it("trusts the flag over the date", () => {
-    const { rows: on } = placeFaces(rows, [aPrint("P1", "Alpha", "2023-06-01", true)]);
-    expect(on[2]!.map((p) => p.printing_id)).toEqual(["P1"]);
-  });
-
-  it("picks the earlier face whose window holds the release date", () => {
+  it("picks the face whose window holds the release date", () => {
     const { rows: on } = placeFaces(rows, [aPrint("P1", "Alpha", "2023-06-01", false), aPrint("P2", "Beta", "2024-06-01", false)]);
     expect(on[0]!.map((p) => p.printing_id)).toEqual(["P1"]);
     expect(on[1]!.map((p) => p.printing_id)).toEqual(["P2"]);
@@ -231,20 +227,23 @@ describe("placing printings on faces", () => {
     expect(on[0]!.map((p) => p.printing_id)).toEqual(["P1"]);
   });
 
-  it("sets aside a textless printing, and an undated one, for different reasons", () => {
-    const { unplaced } = placeFaces(rows, [aPrint("P1", "Promo", "2025-08-01", null), aPrint("P2", "Promo", null, null)]);
-    expect(unplaced.map((u) => [u.printing.printing_id, u.reason])).toEqual([["P1", "no-text"], ["P2", "undated"]]);
-  });
-
-  it("sets aside 'earlier values' when there is no earlier face to point at", () => {
-    const { rows: on, unplaced } = placeFaces([aRow("2023-01-01", null)], [aPrint("P1", "Alpha", "2023-06-01", false)]);
-    expect(on[0]).toEqual([]);
-    expect(unplaced.map((u) => u.reason)).toEqual(["no-earlier-face"]);
+  it("sets aside a textless printing and an undated one, apart from each other", () => {
+    const { textless, undated } = placeFaces(rows, [aPrint("P1", "Promo", "2025-08-01", null), aPrint("P2", "Promo", null, null)]);
+    expect(textless.map((p) => p.printing_id)).toEqual(["P1"]);
+    expect(undated.map((p) => p.printing_id)).toEqual(["P2"]);
   });
 
   it("places nothing when there is no history at all", () => {
-    const { unplaced } = placeFaces([], [aPrint("P1", "Alpha", "2023-06-01", true)]);
-    expect(unplaced).toHaveLength(1);
+    const { undated } = placeFaces([], [aPrint("P1", "Alpha", "2023-06-01", true)]);
+    expect(undated).toHaveLength(1);
+  });
+
+  // The site places printings by release date and consults the flag only
+  // for the null case. The bot must not reach a different answer.
+  it("agrees with the site: the flag never overrides the date", () => {
+    const { rows: on } = placeFaces(rows, [aPrint("P1", "Alpha", "2023-06-01", true), aPrint("P2", "Beta", "2025-06-01", false)]);
+    expect(on[0]!.map((p) => p.printing_id)).toEqual(["P1"]);
+    expect(on[2]!.map((p) => p.printing_id)).toEqual(["P2"]);
   });
 });
 

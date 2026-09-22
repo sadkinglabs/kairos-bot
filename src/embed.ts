@@ -330,45 +330,43 @@ const SOURCE: Record<string, [string, string]> = { api: ["🌐", "as the officia
  * a face it may not carry. There are two such cases and the site words
  * them the same way: a textless promo shows no rules text to compare,
  * and a printing with no release date cannot be placed at all. */
-export type UnplacedReason = "no-text" | "undated" | "no-earlier-face";
-
-/** Why a printing could not be pinned to a face. The first two are the
- * site's own two readings of a null printed_as_current; the third is
- * its own case, and conflating them was worth a bug. */
-export const UNPLACED: Record<UnplacedReason, string> = {
-  "no-text": "shows no rules text, so carries no face",
-  undated: "has no release date, so cannot be placed",
-  "no-earlier-face": "shows earlier values, but no earlier face is on record",
-};
-
-export interface FacePlacement { rows: PrintingSummary[][]; unplaced: { printing: PrintingSummary; reason: UnplacedReason }[] }
+/** Which printings carry which face - the same rule the site uses, so
+ * the two surfaces cannot drift: a printing carries the face in force
+ * on its release date. The last row whose valid_from is at or before
+ * that date wins, and a printing older than every row gets the oldest
+ * face, since the first row stands for everything before recording
+ * began.
+ *
+ * printed_as_current is not consulted to choose a face. It is derived
+ * from the same history, and checked across every printing of every
+ * multi-face card it agrees with the dates in all 101 cases - so using
+ * it as a second opinion would only be a way for the bot and the site
+ * to disagree. Its one job here is the null case, which has two
+ * readings the site already words: a textless promo carries no face to
+ * place, and a printing with no release date cannot be placed at all.
+ */
+export interface FacePlacement {
+  rows: PrintingSummary[][];
+  /** Shows no rules text, so carries no face. */
+  textless: PrintingSummary[];
+  /** No release date, so cannot be placed. */
+  undated: PrintingSummary[];
+}
 
 export function placeFaces(rows: HistoryRow[], printings: PrintingSummary[]): FacePlacement {
   const out: PrintingSummary[][] = rows.map(() => []);
-  const unplaced: { printing: PrintingSummary; reason: UnplacedReason }[] = [];
-  const set = (printing: PrintingSummary, reason: UnplacedReason) => unplaced.push({ printing, reason });
-  if (rows.length === 0) {
-    for (const printing of printings) set(printing, "no-earlier-face");
-    return { rows: out, unplaced };
-  }
-  const newest = rows.length - 1;
-  for (const printing of printings) {
-    if (printing.printed_as_current === null) {
-      set(printing, printing.released_at === null ? "undated" : "no-text");
-      continue;
-    }
-    if (printing.printed_as_current) { out[newest]!.push(printing); continue; }
-    // "Shows earlier values" when the registry holds only one face is a
-    // contradiction it has not resolved. Saying so beats pointing at the
-    // one face on record, which is the face this printing is not.
-    if (newest === 0) { set(printing, "no-earlier-face"); continue; }
+  const textless: PrintingSummary[] = [];
+  const undated: PrintingSummary[] = [];
+  const ordered = printings.toSorted((a, b) => (a.released_at ?? "").localeCompare(b.released_at ?? "") || a.printing_id.localeCompare(b.printing_id));
+  for (const printing of ordered) {
+    if (printing.released_at === null) { undated.push(printing); continue; }
+    if (printing.printed_as_current === null) { textless.push(printing); continue; }
+    if (rows.length === 0) { undated.push(printing); continue; }
     let at = 0;
-    if (printing.released_at) {
-      for (let i = 0; i < newest; i += 1) if (rows[i]!.valid_from <= printing.released_at) at = i;
-    }
+    for (let i = 0; i < rows.length; i += 1) if (rows[i]!.valid_from <= printing.released_at) at = i;
     out[at]!.push(printing);
   }
-  return { rows: out, unplaced };
+  return { rows: out, textless, undated };
 }
 
 /** "Alpha · Beta", the sets a face was printed in. A printing outside a
@@ -425,16 +423,10 @@ export function historyEmbed(card: Card, emojis: EmojiMap, siteBase: string): Re
     return { name: clipTo(`${icon} ${label} · ${dated}`, NAME_MAX), value: clipTo(lines.join("\n"), FIELD_MAX) };
   });
 
-  if (placed.unplaced.length > 0) {
-    const byReason = new Map<UnplacedReason, PrintingSummary[]>();
-    for (const { printing, reason } of placed.unplaced) {
-      const list = byReason.get(reason) ?? [];
-      list.push(printing);
-      byReason.set(reason, list);
-    }
-    const lines = [...byReason].map(([reason, list]) => `*${wherePrinted(list)}* — ${UNPLACED[reason]}.`);
-    fields.push({ name: "❔ Not placed", value: clipTo(lines.join("\n"), FIELD_MAX) });
-  }
+  const aside: string[] = [];
+  if (placed.textless.length > 0) aside.push(`*${wherePrinted(placed.textless)}* — shows no text, so carries no face.`);
+  if (placed.undated.length > 0) aside.push(`*${wherePrinted(placed.undated)}* — release date unknown, so not placed.`);
+  if (aside.length > 0) fields.push({ name: "❔ Not placed", value: clipTo(aside.join("\n"), FIELD_MAX) });
   for (const n of card.name_history.filter((x) => x.valid_to)) fields.push({ name: `🏷️ ${n.valid_from} → ${n.valid_to}`, value: `Named “${n.name}”.` });
 
   const quiet = rows.length < 2 && fields.length < 2;
