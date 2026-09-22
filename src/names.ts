@@ -52,7 +52,8 @@ export function bracketedNames(text: string, limit = 5): string[] {
   return names;
 }
 
-/** Sets matching `text` by code ("006", "6") or by name, best first. */
+/** Sets matching `text` by code ("006", "6", or one of the registry's own
+ * letter codes such as "cur") or by name, best first. */
 export function matchSets<T extends { set_code: string; set_name: string }>(sets: T[], text: string, limit = 25): T[] {
   const q = fold(text);
   if (!q) return sets.slice(0, limit);
@@ -61,7 +62,7 @@ export function matchSets<T extends { set_code: string; set_name: string }>(sets
   for (const set of sets) {
     const name = fold(set.set_name);
     let rank: number;
-    if (set.set_code === asCode || name === q) rank = 0;
+    if (set.set_code === asCode || set.set_code.toLowerCase() === q || name === q) rank = 0;
     else if (name.startsWith(q)) rank = 1;
     else if (name.includes(q)) rank = 2;
     else continue;
