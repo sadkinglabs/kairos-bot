@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CREDIT, MAX_DESCRIPTION, cardEmbed, colour, faceDiff, foundEmbeds, historyEmbed, pageRows, printingEmbed, searchEmbed, setEmbed, smallEmbed, statsLine, thresholdText, typeLine, wordDiff } from "../src/embed";
+import { CREDIT, MAX_DESCRIPTION, cardEmbed, colour, faceDiff, foundEmbeds, historyEmbed, pageRows, placeFaces, printingEmbed, searchEmbed, setEmbed, smallEmbed, statChanges, statsLine, thresholdText, typeLine, wherePrinted, wordDiff } from "../src/embed";
 import type { ActionButton, LinkButton, SelectMenu } from "../src/discord";
 import type { Card, Printing, SetObject } from "../src/registry";
 import { cards, printings, setObjects, sets } from "./fixtures";
@@ -110,22 +110,60 @@ describe("foundEmbeds", () => {
 });
 
 describe("historyEmbed", () => {
-  it("gives each face a field, diffed against the one before, plus earlier names and the art", () => {
+  it("gives each face a field, named for what it is and when", () => {
     const { embeds, components } = historyEmbed(troll, emojis, "https://site.test");
     const e = embeds[0]!;
     expect(e.title).toBe("History of Moss Troll");
-    expect(e.description).toBe("Minion — Ordinary Giant · C000927\n⚠️ 2 faces on record · this card has errata.");
+    expect(e.description).toBe("Minion — Ordinary Giant · C000927\n⚠️ This card has changed. Which values a copy carries depends on its printing.");
     expect(e.thumbnail?.url).toBe(troll.image_urls!.small);
-    expect(e.fields!.map((f) => f.name)).toEqual(["2025-12-05 → 2026-09-15", "2026-09-15 → now", "🏷️ 2025-12-05 → 2026-01-10"]);
-    expect(e.fields![0]!.value).toBe("✍️ First face on record, as printed on the card.");
-    expect(e.fields![1]!.value).toBe("🌐 As the official API served it.\nMana 4 → 3\n📝 Stealth\nLoses Stealth if it ~~moves or attacks.~~ **moves.**");
+    expect(e.fields!.map((f) => f.name)).toEqual([
+      "✍️ Historical values · in force from 2025-12-05",
+      "🌐 Current values · recorded 2026-09-15",
+      "🏷️ 2025-12-05 → 2026-01-10",
+    ]);
     expect(e.fields![2]!.value).toBe("Named “Moss Troll of the Fen”.");
     expect(labels(components[0]!)).toEqual(["Card", "All changes", "JSON"]);
+  });
+
+  // The bug this replaced: the oldest face carried a label and no text,
+  // so the only way to learn what the card said was to run the diff on
+  // the next field backwards in your head.
+  it("prints the oldest face in full, not just a label", () => {
+    const e = historyEmbed(troll, emojis, "https://site.test").embeds[0]!;
+    expect(e.fields![0]!.value).toBe("*Shown on Gothic*\nStealth\nLoses Stealth if it moves or attacks.");
+  });
+
+  it("prints each later face in full too, with the change marked on it", () => {
+    const e = historyEmbed(troll, emojis, "https://site.test").embeds[0]!;
+    expect(e.fields![1]!.value).toBe("*No printing carries this face*\nMana 4 → 3\nStealth\nLoses Stealth if it ~~moves or attacks.~~ **moves.**");
+    // Reading past the struck words gives the current text.
+    expect(e.fields![1]!.value.replace(/~~[^~]*~~/g, "").replace(/\*\*/g, "")).toContain("Loses Stealth if it  moves.");
+  });
+
+  // Moss Troll's only printings predate the change, so the printed face
+  // is the one on shelves and the current face is on no card at all -
+  // which is exactly the thing a player at a table needs told.
+  it("names the sets that carry each face, and says when none does", () => {
+    const e = historyEmbed(troll, emojis, "https://site.test").embeds[0]!;
+    expect(e.fields![0]!.value).toContain("*Shown on Gothic*");
+    expect(e.fields![1]!.value).toContain("*No printing carries this face*");
+  });
+
+  it("sets aside the printings it cannot place, and says why", () => {
+    const e = historyEmbed(druid, emojis, "https://site.test").embeds[0]!;
+    const aside = e.fields!.find((f) => f.name === "❔ Not placed")!;
+    expect(aside).toBeDefined();
+    expect(aside.value).toBe("*Promo Dust · Promo OrganizedPlay* — release date unknown, so not placed.");
   });
   it("says so when nothing changed, with no fields", () => {
     const e = historyEmbed(bears, none, "https://site.test").embeds[0]!;
     expect(e.description).toBe("Minion — Ordinary Beast · C000230\nNo changes recorded. One face on record since 2026-08-19.");
     expect(e.fields).toEqual([]);
+  });
+  it("keeps the stat lines separate from the rules text", () => {
+    const [a, b] = troll.card_history;
+    expect(statChanges(a!, b!, emojis)).toEqual(["Mana 4 → 3"]);
+    expect(faceDiff(a!, b!, emojis)).toEqual(["Mana 4 → 3", "📝 Stealth\nLoses Stealth if it ~~moves or attacks.~~ **moves.**"]);
   });
   it("diffs only what differs, thresholds with the symbols", () => {
     const [a, b] = troll.card_history;
@@ -160,5 +198,63 @@ describe("searchEmbed and colour", () => {
   it("colours by the first element and grey for none", () => {
     expect(colour(["Fire", "Water"])).toBe(0xc8412b);
     expect(colour(["None"])).toBe(0x7d7871);
+  });
+});
+
+const aRow = (from: string, to: string | null) => ({ valid_from: from, valid_to: to, source: "api", rules_text: "", keywords: [], back: null }) as unknown as Parameters<typeof placeFaces>[0][number];
+const aPrint = (id: string, set: string, released: string | null, current: boolean | null, product = "Booster") =>
+  ({ printing_id: id, set_name: set, product, finish: "Standard", released_at: released, slug: id, set_code: "x", retired_at: null, printed_as_current: current }) as unknown as Parameters<typeof placeFaces>[1][number];
+
+describe("placing printings on faces", () => {
+  const rows = [aRow("2023-01-01", "2024-01-01"), aRow("2024-01-01", "2025-01-01"), aRow("2025-01-01", null)];
+
+  it("places a printing on the face in force when it was released", () => {
+    const { rows: on } = placeFaces(rows, [aPrint("P1", "Alpha", "2023-06-01", true)]);
+    expect(on[0]!.map((p) => p.printing_id)).toEqual(["P1"]);
+    expect(on[2]).toEqual([]);
+  });
+
+  // The flag is an observed fact; the release date is only an inference
+  // about which earlier face. Where they disagree the flag decides.
+  it("picks the face whose window holds the release date", () => {
+    const { rows: on } = placeFaces(rows, [aPrint("P1", "Alpha", "2023-06-01", false), aPrint("P2", "Beta", "2024-06-01", false)]);
+    expect(on[0]!.map((p) => p.printing_id)).toEqual(["P1"]);
+    expect(on[1]!.map((p) => p.printing_id)).toEqual(["P2"]);
+  });
+
+  it("falls back to the oldest face for a printing released before any record", () => {
+    const { rows: on } = placeFaces(rows, [aPrint("P1", "Alpha", "2020-01-01", false)]);
+    expect(on[0]!.map((p) => p.printing_id)).toEqual(["P1"]);
+  });
+
+  it("sets aside a textless printing and an undated one, apart from each other", () => {
+    const { textless, undated } = placeFaces(rows, [aPrint("P1", "Promo", "2025-08-01", null), aPrint("P2", "Promo", null, null)]);
+    expect(textless.map((p) => p.printing_id)).toEqual(["P1"]);
+    expect(undated.map((p) => p.printing_id)).toEqual(["P2"]);
+  });
+
+  it("places nothing when there is no history at all", () => {
+    const { undated } = placeFaces([], [aPrint("P1", "Alpha", "2023-06-01", true)]);
+    expect(undated).toHaveLength(1);
+  });
+
+  // The site places printings by release date and consults the flag only
+  // for the null case. The bot must not reach a different answer.
+  it("agrees with the site: the flag never overrides the date", () => {
+    const { rows: on } = placeFaces(rows, [aPrint("P1", "Alpha", "2023-06-01", true), aPrint("P2", "Beta", "2025-06-01", false)]);
+    expect(on[0]!.map((p) => p.printing_id)).toEqual(["P1"]);
+    expect(on[2]!.map((p) => p.printing_id)).toEqual(["P2"]);
+  });
+});
+
+describe("wherePrinted", () => {
+  it("names the sets once each, in the order given", () => {
+    expect(wherePrinted([aPrint("P1", "Alpha", null, true), aPrint("P2", "Alpha", null, true), aPrint("P3", "Beta", null, true)])).toBe("Alpha · Beta");
+  });
+  it("names the product when it is not a booster, since 'Promo' alone says nothing", () => {
+    expect(wherePrinted([aPrint("P1", "Promo", null, true, "OrganizedPlay"), aPrint("P2", "Promo", null, true, "Dust")])).toBe("Promo OrganizedPlay · Promo Dust");
+  });
+  it("is empty for no printings", () => {
+    expect(wherePrinted([])).toBe("");
   });
 });
