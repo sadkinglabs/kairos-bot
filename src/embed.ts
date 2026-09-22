@@ -245,13 +245,14 @@ function show(value: unknown): string {
   return String(value);
 }
 
-/** Discord's cap on one embed field's value. */
+/** Discord's caps on one embed field. */
 const FIELD_MAX = 1024;
+const NAME_MAX = 256;
 
 /** What changed between two faces, one line per field, the rules text
  * last as one merged line: removed words struck through, added words in
  * bold. Thresholds are drawn with the element symbols when given. */
-export function faceDiff(before: HistoryRow, after: HistoryRow, emojis: EmojiMap = new Map()): string[] {
+export function statChanges(before: HistoryRow, after: HistoryRow, emojis: EmojiMap = new Map()): string[] {
   const lines: string[] = [];
   for (const [key, label] of HISTORY_FIELDS) {
     if (show(before[key]) !== show(after[key])) lines.push(`${label} ${show(before[key])} → ${show(after[key])}`);
@@ -260,6 +261,11 @@ export function faceDiff(before: HistoryRow, after: HistoryRow, emojis: EmojiMap
   const thrAfter = thresholdText(after, emojis);
   if (thrBefore !== thrAfter) lines.push(`Threshold ${thrBefore || "none"} → ${thrAfter || "none"}`);
   if (show(before.keywords) !== show(after.keywords)) lines.push(`Keywords ${show(before.keywords)} → ${show(after.keywords)}`);
+  return lines;
+}
+
+export function faceDiff(before: HistoryRow, after: HistoryRow, emojis: EmojiMap = new Map()): string[] {
+  const lines = statChanges(before, after, emojis);
   if (before.rules_text.trim() !== after.rules_text.trim()) lines.push(`📝 ${wordDiff(before.rules_text.trim(), after.rules_text.trim())}`);
   return lines;
 }
@@ -311,22 +317,132 @@ function tokens(text: string): string[] {
 
 const SOURCE: Record<string, [string, string]> = { api: ["🌐", "as the official API served it"], card: ["✍️", "as printed on the card"] };
 
-/** /history: the card's art, then one field per face the card has had,
- * oldest first, each change against the one before, and any earlier
- * names. */
+/** Which printings show which face.
+ *
+ * A printing shows the face that was in force when it was released, so
+ * the face whose [valid_from, valid_to) window contains its release
+ * date. The registry also records printed_as_current on each printing,
+ * and that is an observed fact rather than an inference, so where the
+ * two disagree the flag wins: true means the newest face, false means
+ * an earlier one and the date only chooses which.
+ *
+ * A printing the flag cannot judge is named apart rather than pinned to
+ * a face it may not carry. There are two such cases and the site words
+ * them the same way: a textless promo shows no rules text to compare,
+ * and a printing with no release date cannot be placed at all. */
+export type UnplacedReason = "no-text" | "undated" | "no-earlier-face";
+
+/** Why a printing could not be pinned to a face. The first two are the
+ * site's own two readings of a null printed_as_current; the third is
+ * its own case, and conflating them was worth a bug. */
+export const UNPLACED: Record<UnplacedReason, string> = {
+  "no-text": "shows no rules text, so carries no face",
+  undated: "has no release date, so cannot be placed",
+  "no-earlier-face": "shows earlier values, but no earlier face is on record",
+};
+
+export interface FacePlacement { rows: PrintingSummary[][]; unplaced: { printing: PrintingSummary; reason: UnplacedReason }[] }
+
+export function placeFaces(rows: HistoryRow[], printings: PrintingSummary[]): FacePlacement {
+  const out: PrintingSummary[][] = rows.map(() => []);
+  const unplaced: { printing: PrintingSummary; reason: UnplacedReason }[] = [];
+  const set = (printing: PrintingSummary, reason: UnplacedReason) => unplaced.push({ printing, reason });
+  if (rows.length === 0) {
+    for (const printing of printings) set(printing, "no-earlier-face");
+    return { rows: out, unplaced };
+  }
+  const newest = rows.length - 1;
+  for (const printing of printings) {
+    if (printing.printed_as_current === null) {
+      set(printing, printing.released_at === null ? "undated" : "no-text");
+      continue;
+    }
+    if (printing.printed_as_current) { out[newest]!.push(printing); continue; }
+    // "Shows earlier values" when the registry holds only one face is a
+    // contradiction it has not resolved. Saying so beats pointing at the
+    // one face on record, which is the face this printing is not.
+    if (newest === 0) { set(printing, "no-earlier-face"); continue; }
+    let at = 0;
+    if (printing.released_at) {
+      for (let i = 0; i < newest; i += 1) if (rows[i]!.valid_from <= printing.released_at) at = i;
+    }
+    out[at]!.push(printing);
+  }
+  return { rows: out, unplaced };
+}
+
+/** "Alpha · Beta", the sets a face was printed in. A printing outside a
+ * booster names its product too, because "Promo" alone says nothing
+ * about which promo. */
+export function wherePrinted(printings: PrintingSummary[]): string {
+  const seen: string[] = [];
+  for (const p of printings) {
+    const label = p.product && p.product !== "Booster" ? `${p.set_name} ${p.product}` : p.set_name;
+    if (!seen.includes(label)) seen.push(label);
+  }
+  return seen.join(" · ");
+}
+
+/** /history: one field per face the card has had, oldest first.
+ *
+ * Every face shows its rules text in full. That is the point of the
+ * layout: a reader who only sees a diff has to run it backwards in
+ * their head to learn what the card actually said, and with three faces
+ * that stops being possible. So the oldest face is printed plainly and
+ * each later one is printed with the change marked on it - struck words
+ * are what it stopped saying, bold what it started - which reads as the
+ * new text while still showing what moved.
+ *
+ * Each face also names the sets that carry it, because the question a
+ * player actually has is not "what changed" but "does the copy in my
+ * hand play the way it is printed". */
 export function historyEmbed(card: Card, emojis: EmojiMap, siteBase: string): Reply {
   const rows = card.card_history.toSorted((a, b) => a.valid_from.localeCompare(b.valid_from));
+  const placed = placeFaces(rows, card.printings ?? []);
+  const newest = rows.length - 1;
+
   const fields: EmbedField[] = rows.map((row, i) => {
-    const [icon, source] = SOURCE[row.source] ?? ["", row.source];
-    const value = i === 0 ? [`${icon} First face on record, ${source}.`] : [`${icon} ${source[0]!.toUpperCase()}${source.slice(1)}.`, ...faceDiff(rows[i - 1]!, row, emojis)];
-    if (i > 0 && value.length === 1) value.push("No gameplay change.");
-    return { name: `${row.valid_from} → ${row.valid_to ?? "now"}`, value: clipTo(value.join("\n"), FIELD_MAX) };
+    const [icon] = SOURCE[row.source] ?? ["•"];
+    const fromCard = row.source === "card";
+    const label = fromCard ? "As printed" : i === newest ? "As it plays now" : "Earlier record";
+    const dated = fromCard ? `in force from ${row.valid_from}` : `recorded ${row.valid_from}`;
+
+    const lines: string[] = [];
+    const where = wherePrinted(placed.rows[i] ?? []);
+    lines.push(`*${where ? `Shown on ${where}` : "No printing carries this face"}*`);
+
+    const previous = i > 0 ? rows[i - 1]! : null;
+    if (previous) lines.push(...statChanges(previous, row, emojis));
+
+    const text = row.rules_text.trim();
+    const before = previous?.rules_text.trim() ?? "";
+    if (!text && !before) lines.push("_No rules text._");
+    else if (!previous) lines.push(text || "_No rules text._");
+    else if (text === before) lines.push(text);
+    else lines.push(wordDiff(before, text));
+
+    if (previous && changedBack(previous, row)) lines.push(`Back face: ${backChange(previous, row)}`);
+    return { name: clipTo(`${icon} ${label} · ${dated}`, NAME_MAX), value: clipTo(lines.join("\n"), FIELD_MAX) };
   });
+
+  if (placed.unplaced.length > 0) {
+    const byReason = new Map<UnplacedReason, PrintingSummary[]>();
+    for (const { printing, reason } of placed.unplaced) {
+      const list = byReason.get(reason) ?? [];
+      list.push(printing);
+      byReason.set(reason, list);
+    }
+    const lines = [...byReason].map(([reason, list]) => `*${wherePrinted(list)}* — ${UNPLACED[reason]}.`);
+    fields.push({ name: "❔ Not placed", value: clipTo(lines.join("\n"), FIELD_MAX) });
+  }
   for (const n of card.name_history.filter((x) => x.valid_to)) fields.push({ name: `🏷️ ${n.valid_from} → ${n.valid_to}`, value: `Named “${n.name}”.` });
+
   const quiet = rows.length < 2 && fields.length < 2;
   const summary = quiet
     ? `No changes recorded. One face on record since ${rows[0]?.valid_from ?? "the first release"}.`
-    : `${card.errata ? "⚠️ " : ""}${rows.length} ${rows.length === 1 ? "face" : "faces"} on record${card.errata ? " · this card has errata" : ""}.`;
+    : card.errata
+      ? "⚠️ This card plays differently from how it is printed."
+      : `${rows.length} ${rows.length === 1 ? "face" : "faces"} on record.`;
   const embed: Embed = {
     title: `History of ${card.name}`,
     url: `${card.kairos_url}#history`,
@@ -337,6 +453,18 @@ export function historyEmbed(card: Card, emojis: EmojiMap, siteBase: string): Re
   };
   if (card.image_urls) embed.thumbnail = { url: card.image_urls.small };
   return { embeds: [embed], components: [linkRow([{ label: "Card", url: card.kairos_url }, { label: "All changes", url: `${siteBase}/changes` }, { label: "JSON", url: card.api_url }])] };
+}
+
+/** Whether the back face appeared, vanished or changed between two rows. */
+function changedBack(before: HistoryRow, after: HistoryRow): boolean {
+  if (!before.back || !after.back) return Boolean(before.back) !== Boolean(after.back);
+  return before.back.rules_text.trim() !== after.back.rules_text.trim();
+}
+
+function backChange(before: HistoryRow, after: HistoryRow): string {
+  if (!before.back) return "added.";
+  if (!after.back) return "removed.";
+  return wordDiff(before.back.rules_text.trim(), after.back.rules_text.trim());
 }
 
 function clipTo(text: string, max: number): string {
